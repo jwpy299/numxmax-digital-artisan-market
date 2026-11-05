@@ -1,0 +1,47 @@
+{
+  "id": "dept-finance",
+  "version": "0.1.0",
+  "entry": "lib/index.js",
+  "dept": "finance",
+  "leadStationKey": "dept-finance-lead",
+  "allowedProcedures": {
+    "read": [
+      "harnessProxy.tasks",
+      "harnessProxy.delegations",
+      "harnessProxy.employees",
+      "harnessProxy.reviews",
+      "harnessProxy.notices"
+    ],
+    "write": [
+      "harnessProxy.delegate",
+      "harnessProxy.reviewSubmit",
+      "harnessProxy.reviewDecide",
+      "harnessProxy.noticeRead"
+    ]
+  },
+  "roleCapabilities": {
+    "plugin.install": [
+      "manager"
+    ],
+    "cabin.manage": [
+      "admin",
+      "manager"
+    ],
+    "member.invite": [
+      "admin",
+      "manager"
+    ],
+    "task.execute": [
+      "staff"
+    ],
+    "review.submit": [
+      "staff"
+    ],
+    "review.decide": [
+      "admin",
+      "manager"
+    ],
+    "collab.scoped": [],
+    "digital_employee.invoke": []
+  }
+}

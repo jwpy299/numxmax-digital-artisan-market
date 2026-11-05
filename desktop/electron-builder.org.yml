@@ -1,0 +1,9 @@
+# electron-builder 配置（NumX Max 桌面壳——org 组织运行时专用版）
+extends: ./electron-builder.shared.yml
+files:
+  - src/**
+  - assets/**
+  - frontend/**
+  - "!frontend/index.html"
+  - "!frontend/ops/**"
+  - package.json

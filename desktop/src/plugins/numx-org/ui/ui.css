@@ -1,0 +1,13 @@
+#numx-org-runtime{--org-head-height:68px;margin:16px 0;border:1px solid #203047;border-radius:14px;overflow:hidden;background:#0b1220;color:#dce7f7}
+#numx-org-runtime .numx-org-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid #203047}
+#numx-org-runtime .numx-org-head strong{display:block;font-size:15px;letter-spacing:.01em}
+#numx-org-runtime .numx-org-head span{display:block;margin-top:3px;font-size:11px;color:#8fa5c4}
+#numx-org-runtime nav{display:flex;gap:6px;flex-wrap:wrap}
+#numx-org-runtime nav button{border:1px solid #2b3d5b;border-radius:8px;padding:6px 9px;background:#111d31;color:#c8d8ee;font:600 11px/1.2 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;cursor:pointer}
+#numx-org-runtime nav button[aria-pressed="true"]{border-color:#4e8df5;background:#173763;color:#fff}
+#numx-org-runtime iframe{display:block;width:100%;height:calc(100vh - var(--org-head-height));min-height:620px;border:0;background:#0b1220}
+#numx-org-runtime.org-fullscreen{position:fixed;inset:0;z-index:2147483000;margin:0;border-radius:0}
+#numx-org-runtime.org-fullscreen iframe{height:calc(100vh - var(--org-head-height));min-height:calc(100vh - var(--org-head-height))}
+#numx-org-runtime.org-fullscreen .numx-org-head{height:var(--org-head-height);box-sizing:border-box}
+@media(max-width:760px){#numx-org-runtime .numx-org-head{align-items:flex-start;flex-direction:column}#numx-org-runtime iframe{min-height:560px}}
+#numx-org-runtime iframe[hidden]{display:none}

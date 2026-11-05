@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer"><!-- 安全钉（NumX wb#128 复锚 high②）：外链资源 Referer 不带 URL（防 ?token= 随 Referer 头外泄） -->
+<title>NumX Max · 组织智能体运行时 — 真数据版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#050810; --panel:#0c1220; --panel2:#111a2b; --line:#1a2540;
+  --cyan:#22d3ee; --mint:#34d399; --amber:#fbbf24; --red:#f87171; --violet:#a78bfa;
+  --t1:#f4f7fb; --t2:#9fb0c7; --t3:#5c6b84;
+  --mono:'JetBrains Mono',monospace; --sans:'Inter',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:14px;overflow:hidden;
+  background-image:radial-gradient(ellipse 1000px 480px at 70% -10%,rgba(34,211,238,.05),transparent),
+  repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(34,211,238,.008) 3px);}
+/* ── 顶栏 ─ */
+.hd{height:52px;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--line);background:rgba(12,18,32,.88);backdrop-filter:blur(10px);position:relative;z-index:20}
+.radar{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--cyan);position:relative;flex:none}
+.radar::after{content:'';position:absolute;inset:3px;border-radius:50%;background:conic-gradient(var(--cyan),transparent 70%);animation:sweep 4.2s linear infinite}
+@keyframes sweep{to{transform:rotate(360deg)}}
+.hd .ttl{font-size:15px;font-weight:700}
+.hd .sub{font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:.18em}
+.hd .sp{flex:1}
+.talk{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;padding:7px 14px;border-radius:9px;border:none;background:var(--cyan);color:#04121a;cursor:pointer;transition:box-shadow .25s}
+.talk:hover{box-shadow:0 0 20px rgba(34,211,238,.45)}
+.live{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--mint);border:1px solid rgba(52,211,153,.35);padding:5px 11px;border-radius:99px;background:rgba(52,211,153,.07)}
+.live.off{color:var(--amber);border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.07)}
+.live.off .dot{animation-name:pulseOff}
+@keyframes pulseOff{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(251,191,36,.5)}50%{opacity:.5;box-shadow:0 0 0 5px rgba(251,191,36,0)}}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,.5)}50%{opacity:.5;box-shadow:0 0 0 5px rgba(52,211,153,0)}}
+.clock{font-family:var(--mono);font-size:11px;color:var(--t2)}
+/* W5-2 跨企业协同空间卡 */
+.collab{margin-top:14px}
+.collab .cl-h{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--t3);margin-bottom:8px}
+.collab .cl-links{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.collab .clink{border:1px solid var(--line);border-radius:10px;padding:7px 12px;font-size:12px;color:var(--t2)}
+.collab .clink b{color:var(--t1)}
+.collab .clink .st{font-family:var(--mono);font-size:9px;padding:1px 7px;border-radius:8px;margin-left:8px}
+.collab .st-pending{background:var(--amber);color:#1A1206}
+.collab .st-active{background:var(--mint);color:#06281c}
+.collab .co{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:6px;display:flex;gap:10px;align-items:center;font-size:12px}
+.collab .co .dir{font-family:var(--mono);font-size:9px;padding:1px 7px;border-radius:8px}
+.collab .co .out{background:rgba(34,211,238,.14);color:var(--cyan)}
+.collab .co .in{background:rgba(167,139,250,.14);color:var(--violet)}
+.collab .co .tt{color:var(--t1);font-weight:700}
+.collab .co .st2{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--t3)}
+.cempty{color:var(--t3);font-size:11px;padding:8px 0}
+.clb{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:8px;border:1px solid var(--cyan);background:transparent;color:var(--cyan);cursor:pointer;margin-left:8px}
+.clb:hover{background:rgba(34,211,238,.12)}
+.clb-w{border-color:var(--amber);color:var(--amber)}
+.clb-w:hover{background:rgba(251,191,36,.12)}
+
+/* W3-02 推送三通铃铛（待审 todo/告警 warn[叫人=warn 子面]——出站队列轮询面） */
+.bell{position:relative;cursor:pointer;display:flex;align-items:center;padding:4px;color:var(--t2,#9FB0C8)}
+.bell:hover{color:var(--cyan)}
+.nbadge{position:absolute;top:-4px;right:-8px;background:var(--amber);color:#1A1206;border-radius:9px;font-size:9px;padding:0 5px;font-weight:700;font-family:var(--mono);line-height:1.7}
+.nbox{position:absolute;right:0;top:28px;width:340px;max-height:380px;overflow:auto;background:rgba(12,18,32,.97);border:1px solid var(--line);border-radius:12px;z-index:50;box-shadow:0 12px 40px rgba(0,0,0,.5);cursor:default;text-align:left}
+.nbox .nact{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:11px;color:var(--t2)}
+.nbox .nact a{cursor:pointer;color:var(--cyan)}
+.nbox .ni{padding:9px 12px;border-bottom:1px solid var(--line)}
+.nbox .ni:last-child{border-bottom:none}
+.nbox .ni .nt{font-weight:700;color:var(--t1);font-size:12px;margin-bottom:3px}
+.nbox .ni .nb{color:var(--t3);font-size:11px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nbox .ni .nm{color:var(--t3);font-size:9px;font-family:var(--mono);margin-top:4px;letter-spacing:.08em}
+
+.chip{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;padding:4px 9px;border-radius:99px;border:1px solid var(--line);color:var(--t2)}
+.chip.on{color:var(--mint);border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.08)}
+/* ── ticker ─ */
+.tk{height:30px;display:flex;align-items:center;border-bottom:1px solid var(--line);background:#070c18;position:relative;z-index:15}
+.tk .tag{flex:none;height:100%;display:flex;align-items:center;padding:0 12px;font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;color:#04121a;background:var(--cyan);font-weight:700}
+.tkview{flex:1;overflow:hidden;mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
+.tkflow{display:inline-flex;white-space:nowrap;animation:marq 46s linear infinite;font-family:var(--mono);font-size:11px;color:var(--t2)}
+.tkflow:hover{animation-play-state:paused}
+@keyframes marq{to{transform:translateX(-50%)}}
+.tki{padding:0 22px;display:inline-flex;align-items:center;gap:8px}
+.tki b{font-weight:500;color:var(--t1)}
+.sev{width:6px;height:6px;border-radius:1px;flex:none}
+.sev.ok{background:var(--mint)}.sev.wr{background:var(--amber)}.sev.cr{background:var(--red)}.sev.iv{background:var(--violet)}
+/* ── 主框 ─ */
+.wrap{display:grid;grid-template-columns:250px 1fr;height:calc(100% - 82px);transition:grid-template-columns .3s var(--ease)}
+.wrap.fold{grid-template-columns:52px 1fr}
+/* 左组织树 */
+.lt{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;overflow:hidden;position:relative}
+.lt-h{flex:none;display:flex;align-items:center;gap:8px;padding:11px 12px;border-bottom:1px solid var(--line)}
+.lt-h .t{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;color:var(--t3);flex:1;white-space:nowrap;overflow:hidden}
+.foldbtn{flex:none;width:24px;height:24px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--t2);cursor:pointer;font-family:var(--mono);font-size:11px}
+.foldbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.tree{flex:1;overflow-y:auto;padding:6px 8px 12px}
+.tnode{margin:5px 0;border:1px solid var(--line);border-radius:8px;background:var(--panel2);cursor:pointer;transition:border-color .2s,background .2s;position:relative}
+.tnode:hover{border-color:rgba(34,211,238,.4)}
+.tnode.on{border-color:var(--cyan);background:rgba(34,211,238,.06);box-shadow:0 0 16px rgba(34,211,238,.1) inset}
+.tn-h{display:flex;align-items:center;gap:8px;padding:8px 9px}
+.ava{width:26px;height:26px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:700;border:1px solid var(--line)}
+.ava.boss{background:rgba(34,211,238,.14);color:var(--cyan);border-color:rgba(34,211,238,.4)}
+.ava.rev{background:rgba(167,139,250,.13);color:var(--violet);border-color:rgba(167,139,250,.4)}
+.ava.dept{background:rgba(52,211,153,.1);color:var(--mint);border-color:rgba(52,211,153,.3)}
+.tn-t{flex:1;min-width:0}
+.tn-n{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn-r{font-family:var(--mono);font-size:8.5px;color:var(--t3);letter-spacing:.08em;margin-top:2px}
+.led{width:7px;height:7px;border-radius:50%;flex:none}
+.led.g{background:var(--mint);box-shadow:0 0 8px var(--mint)}
+.led.y{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.led.r{background:var(--red);box-shadow:0 0 8px var(--red)}
+.led.dim{background:var(--t3)}
+.tn-k{display:flex;gap:8px;padding:0 9px 8px 43px;font-family:var(--mono);font-size:9px;color:var(--t2)}
+.tn-k b{color:var(--cyan);font-weight:500}
+.lvl2{margin-left:14px;border-left:1px dashed rgba(34,211,238,.22);padding-left:8px}
+.wrap.fold .tn-t,.wrap.fold .tn-k,.wrap.fold .lt-h .t,.wrap.fold .lvl2{display:none}
+.wrap.fold .tn-h{justify-content:center;padding:8px 4px}
+.wrap.fold .ava{width:30px;height:30px}
+.wrap.fold .led{position:absolute;top:3px;right:3px}
+/* 主区 */
+.ct{overflow-y:auto;position:relative}
+.view{padding:16px 18px 22px;animation:rv .45s var(--ease)}
+@keyframes rv{from{opacity:0;transform:translateY(8px)}}
+/* 版B 驾驶舱 */
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+.kpi{border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:11px 12px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--kc,var(--cyan)),transparent)}
+.kpi .kl{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--t3)}
+.kpi .kv{font-family:var(--mono);font-size:22px;font-weight:700;margin-top:5px}
+.kpi .kv small{font-size:10px;color:var(--t3);font-weight:400}
+.kpi .kd{font-family:var(--mono);font-size:9.5px;margin-top:3px}
+.kd.up{color:var(--mint)}.kd.dn{color:var(--red)}.kd.wn{color:var(--amber)}
+.duo{display:grid;grid-template-columns:1fr 322px;gap:14px;align-items:start}
+.sec-h{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--t3);display:flex;align-items:center;gap:8px;margin:4px 0 10px}
+.sec-h::after{content:'';flex:1;height:1px;background:var(--line)}
+.depts{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}
+.dc{border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:13px 14px;position:relative;overflow:hidden;cursor:pointer;transition:border-color .25s var(--ease),transform .25s var(--ease)}
+.dc:hover{border-color:rgba(34,211,238,.45);transform:translateY(-2px)}
+.dc .dh{display:flex;align-items:center;gap:9px}
+.dc .dn{font-size:15px;font-weight:700}
+.dc .dr{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:.12em;margin-top:2px}
+.dc .led{margin-left:auto}
+.ring{position:absolute;top:12px;right:12px;width:52px;height:52px}
+.ring svg{transform:rotate(-90deg)}
+.ring .rv2{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono)}
+.ring .rv2 b{font-size:12px;font-weight:700}
+.ring .rv2 span{font-size:7.5px;color:var(--t3);letter-spacing:.06em}
+.dc .kp{display:flex;gap:16px;margin-top:11px}
+.dc .kp .k{flex:1}
+.dc .kp .kl{font-family:var(--mono);font-size:8.5px;color:var(--t3);letter-spacing:.1em}
+.dc .kp .kv{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:3px}
+.dc .news{margin-top:10px;padding-top:9px;border-top:1px dashed rgba(26,37,64,.9);font-size:11px;color:var(--t2);line-height:1.5}
+.dc .news b{color:var(--cyan);font-weight:600}
+.dc .crew{display:flex;gap:5px;margin-top:9px;font-family:var(--mono);font-size:10px;color:var(--t3)}
+.cw{width:7px;height:7px;border-radius:50%;background:#223252}
+.cw.b{background:var(--cyan);box-shadow:0 0 6px rgba(34,211,238,.6)}
+.dc .cnt{position:absolute;bottom:11px;right:13px;font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:.08em}
+.dc .go{position:absolute;bottom:11px;left:14px;font-family:var(--mono);font-size:8.5px;color:var(--t3);letter-spacing:.1em;opacity:0;transition:opacity .2s}
+.dc:hover .go{opacity:1;color:var(--cyan)}
+.boss,.revx{border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:13px 14px;margin-bottom:12px}
+.bh{display:flex;align-items:center;gap:10px}
+.bava{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:14px;flex:none}
+.bava.b{background:rgba(34,211,238,.14);color:var(--cyan);border:1px solid rgba(34,211,238,.4)}
+.bava.r{background:rgba(167,139,250,.13);color:var(--violet);border:1px solid rgba(167,139,250,.4)}
+.bh .bn{font-size:14px;font-weight:700}
+.bh .br{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:.12em;margin-top:2px}
+.stat{display:flex;gap:12px;margin-top:11px}
+.stat .s{flex:1;border:1px solid var(--line);border-radius:8px;padding:8px 9px;background:var(--panel2)}
+.stat .sl{font-family:var(--mono);font-size:8.5px;color:var(--t3);letter-spacing:.1em}
+.stat .sv{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:3px}
+.qitem{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed rgba(26,37,64,.8);font-size:11px}
+.qitem:last-child{border:none}
+.qitem .qt{flex:1;color:var(--t1)}
+.qitem .qm{font-family:var(--mono);font-size:9px;color:var(--t3)}
+.qb{font-family:var(--mono);font-size:8.5px;padding:2px 6px;border-radius:4px;letter-spacing:.06em}
+.qb.pass{color:var(--mint);border:1px solid rgba(52,211,153,.35)}
+.qb.hold{color:var(--amber);border:1px solid rgba(251,191,36,.35)}
+.qb.back{color:var(--red);border:1px solid rgba(248,113,113,.35)}
+.flowline{margin-top:16px;border:1px solid var(--line);border-radius:11px;background:var(--panel);overflow:hidden}
+.fl-h{display:flex;align-items:center;gap:8px;padding:10px 13px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--t2)}
+.fl-b{display:flex;overflow-x:auto;padding:12px 13px}
+.fstep{flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;position:relative}
+.fstep + .fstep::before{content:'→';position:absolute;left:-4px;top:50%;transform:translateY(-50%);color:var(--t3);font-family:var(--mono);font-size:10px}
+.fno{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9.5px;font-weight:700;flex:none;border:1px solid var(--cyan);color:var(--cyan);background:rgba(34,211,238,.08)}
+.fno.ok{border-color:var(--mint);color:var(--mint);background:rgba(52,211,153,.08)}
+.fno.rev{border-color:var(--violet);color:var(--violet);background:rgba(167,139,250,.08)}
+.fstep .ft{font-size:11px;white-space:nowrap}
+.fstep .fm{font-family:var(--mono);font-size:8.5px;color:var(--t3);margin-top:2px;white-space:nowrap}
+/* 版A 舱视图 */
+.back{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--t2);border:1px solid var(--line);background:var(--panel);padding:6px 11px;border-radius:8px;cursor:pointer;margin-bottom:12px}
+.back:hover{border-color:var(--cyan);color:var(--cyan)}
+.cabin-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.cabin-head h1{font-size:21px;font-weight:800}
+.cabin-head .crumb{font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:.2em;margin-bottom:3px}
+.kpis4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.duo2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+.card-h{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--t2)}
+.card-h .sp{flex:1}
+.card-h .more{font-size:9px;color:var(--t3);letter-spacing:.1em}
+.seats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px}
+.seat{border:1px solid var(--line);border-radius:8px;padding:9px;background:var(--panel2);transition:border-color .2s}
+.seat:hover{border-color:rgba(34,211,238,.35)}
+.seat.busy{border-color:rgba(34,211,238,.4);background:rgba(34,211,238,.05)}
+.seat .sn{font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px}
+.seat .sr{font-family:var(--mono);font-size:8.5px;color:var(--t3);letter-spacing:.08em;margin-top:3px}
+.seat .st{font-family:var(--mono);font-size:8.5px;margin-top:6px}
+.seat .st.i{color:var(--t3)}
+.seat .task{font-size:9.5px;color:var(--t2);margin-top:5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ops{padding:6px 12px 12px}
+.op{display:grid;grid-template-columns:74px 1fr 54px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px dashed rgba(26,37,64,.8)}
+.op:last-child{border:none}
+.op .on2{font-family:var(--mono);font-size:10px;color:var(--cyan)}
+.op .ob{height:4px;background:var(--panel2);border-radius:99px;overflow:hidden}
+.op .obf{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--cyan),var(--mint));animation:obin 1.1s var(--ease)}
+@keyframes obin{from{width:0}}
+.op .ov{font-family:var(--mono);font-size:10px;color:var(--t2);text-align:right}
+.prod{padding:10px 12px 12px}
+.pr{display:flex;align-items:center;gap:9px;padding:6.5px 0;font-size:11.5px;border-bottom:1px dashed rgba(26,37,64,.8)}
+.pr:last-child{border:none}
+.pr .pt{flex:1}
+.pr .pm{font-family:var(--mono);font-size:9px;color:var(--t3)}
+.pr .pb{font-family:var(--mono);font-size:9px;color:var(--mint);border:1px solid rgba(52,211,153,.35);padding:2px 6px;border-radius:4px}
+/* 对话抽屉 */
+.mask{position:fixed;inset:0;background:rgba(3,6,12,.55);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .3s;z-index:40}
+.mask.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:500px;max-width:92vw;background:var(--panel);border-left:1px solid var(--line);z-index:50;transform:translateX(102%);transition:transform .38s var(--ease);display:none;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,.5)}
+.drawer.open{transform:translateX(0);display:flex}
+.dr-h{flex:none;display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line)}
+.dr-h .av{width:34px;height:34px;border-radius:9px;background:rgba(34,211,238,.14);border:1px solid rgba(34,211,238,.4);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;color:var(--cyan)}
+.dr-h .n{font-size:14px;font-weight:700}
+.dr-h .r{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:.12em;margin-top:2px}
+.dr-x{margin-left:auto;width:28px;height:28px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--t2);cursor:pointer;font-size:13px}
+.dr-x:hover{border-color:var(--red);color:var(--red)}
+.msgs{flex:1;overflow-y:auto;padding:16px 15px}
+.msg{display:flex;gap:9px;margin-bottom:14px;animation:rv .5s var(--ease) both}
+.msg .ma{width:28px;height:28px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:700}
+.msg.u .ma{background:#1a2540;color:var(--t2)}
+.msg.a .ma{background:rgba(34,211,238,.14);color:var(--cyan);border:1px solid rgba(34,211,238,.35)}
+.msg .mb{flex:1;max-width:92%}
+.msg .mt{font-size:12.5px;line-height:1.65}
+.msg.u .mt{background:var(--panel2);border:1px solid var(--line);border-radius:4px 12px 12px 12px;padding:9px 12px}
+.msg.a .mt{background:rgba(34,211,238,.05);border:1px solid rgba(34,211,238,.18);border-radius:12px 4px 12px 12px;padding:10px 13px}
+.msg .mm{font-family:var(--mono);font-size:8.5px;color:var(--t3);margin-top:4px;letter-spacing:.06em}
+.assign{margin-top:9px;border:1px solid rgba(34,211,238,.3);border-radius:9px;background:rgba(34,211,238,.06);overflow:hidden}
+.assign .ah{display:flex;align-items:center;gap:7px;padding:7px 10px;border-bottom:1px solid rgba(34,211,238,.18);font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--cyan)}
+.assign .ab{padding:9px 10px}
+.ait{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:11.5px}
+.ait .ic{width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;flex:none;background:rgba(52,211,153,.12);color:var(--mint);border:1px solid rgba(52,211,153,.3)}
+.ait .it{flex:1}
+.ait .iv{font-family:var(--mono);font-size:9px;color:var(--mint)}
+.asteps{display:flex;gap:6px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed rgba(34,211,238,.18);font-family:var(--mono);font-size:9px;color:var(--t2);flex-wrap:wrap}
+.astep{padding:3px 8px;border-radius:99px;border:1px solid var(--line)}
+.astep.done{color:var(--mint);border-color:rgba(52,211,153,.4)}
+.astep.doing{color:var(--cyan);border-color:rgba(34,211,238,.5);animation:pulse 1.6s ease-in-out infinite}
+.astep.todo{color:var(--t3)}
+.inp{flex:none;border-top:1px solid var(--line);padding:12px 14px;background:rgba(12,18,32,.7)}
+.inp .hint{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:.1em;margin-bottom:8px}
+.inp .hint b{color:var(--cyan)}
+.inpbox{display:flex;gap:9px}
+.inpbox input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:11px 13px;color:var(--t1);font-family:var(--sans);font-size:13px;outline:none}
+.inpbox input:focus{border-color:var(--cyan)}
+.inpbox select{flex:none;max-width:140px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:0 8px;color:var(--t1);font-size:12px}
+.inpbox input::placeholder{color:var(--t3)}
+.send{flex:none;width:auto;min-width:44px;padding:0 12px;border:none;border-radius:8px;background:var(--cyan);color:#04121a;font-weight:700;font-size:15px;cursor:pointer}
+.send:hover{box-shadow:0 0 18px rgba(34,211,238,.4)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#223252;border-radius:99px}
+/* ═══ 认证门两栏化（2026-10-28 彭总令：注册/口令提到左侧导航）═══ */
+.ag-shell{display:flex;width:812px;max-width:calc(100vw - 48px);max-height:calc(100vh - 48px);background:rgba(15,23,42,.94);border:1px solid var(--line,#24344D);border-radius:18px;overflow:hidden;backdrop-filter:blur(14px);box-shadow:0 24px 80px rgba(0,0,0,.55)}
+.ag-nav{flex:none;width:232px;background:linear-gradient(180deg,rgba(11,17,30,.96),rgba(9,14,25,.96));border-right:1px solid var(--line,#24344D);padding:22px 14px;display:flex;flex-direction:column;gap:20px}
+.ag-brand{display:flex;align-items:center;gap:10px;padding:0 6px}
+.ag-logo{width:30px;height:30px;flex:none;border-radius:9px;background:linear-gradient(135deg,#22D3EE,#34D399);color:#04121a;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center}
+.ag-bn{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--t1,#F5F7FA);font-weight:700}
+.ag-bs{font-size:10px;color:var(--t3,#8A94A8);margin-top:2px}
+.ag-navlist{display:flex;flex-direction:column;gap:4px}
+.ag-nav-item{display:flex;align-items:center;gap:9px;width:100%;background:transparent;border:1px solid transparent;border-radius:9px;padding:10px 11px;font-size:13px;color:var(--t2,#9FB0C7);cursor:pointer;text-align:left;transition:all .18s var(--ease)}
+.ag-nav-item:hover{background:rgba(34,211,238,.07);color:var(--t1,#F5F7FA)}
+.ag-nav-item.on{background:rgba(34,211,238,.13);border-color:rgba(34,211,238,.4);color:var(--t1,#F5F7FA);font-weight:600}
+.ag-nav-item .ic{width:16px;flex:none;text-align:center;color:var(--cyan,#22D3EE);font-size:13px}
+.ag-nav-item .tag{margin-left:auto;font-style:normal;font-size:9px;letter-spacing:.06em;padding:1px 5px;border-radius:5px;background:rgba(251,191,36,.16);color:#FBBF24;border:1px solid rgba(251,191,36,.35)}
+.ag-navfoot{margin-top:auto;display:flex;flex-direction:column;gap:8px;padding:0 6px}
+.ag-navfoot .chip2{font-size:10px;color:var(--mint,#34D399);border:1px solid rgba(52,211,153,.35);border-radius:6px;padding:3px 7px;align-self:flex-start}
+.ag-ver{font-size:9.5px;color:var(--t3,#8A94A8);letter-spacing:.02em}
+.ag-pane{flex:1;padding:30px 32px;min-width:0;min-height:0;overflow-y:auto}
+@media (max-width:720px){
+  .ag-shell{flex-direction:column;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px)}
+  .ag-nav{width:auto;border-right:none;border-bottom:1px solid var(--line,#24344D);padding:12px 14px}
+  .ag-navlist{flex-direction:row;flex-wrap:wrap}
+  .ag-nav-item{flex:1;min-width:96px}
+  .ag-navfoot{display:none}
+  .hd .clock,.hd .bell{display:none}
+  .ag-pane{padding:20px 18px}
+}
+
+</style>
+</head>
+<body>
+<!-- ═══ wb#138 注册登录屏（彭总令：注册登录链放进组织运行时桌面端——开箱即注册登录不先跑网页）═══ -->
+<div id="authgate" style="position:fixed;inset:0;background:var(--bg,#0A101E);display:none;align-items:center;justify-content:center;z-index:99">
+  <div class="ag-shell">
+    <nav class="ag-nav">
+      <div class="ag-brand">
+        <div class="ag-logo">N</div>
+        <div>
+          <div class="ag-bn">NUMX MAX</div>
+          <div class="ag-bs">组织智能体运行时</div>
+        </div>
+      </div>
+      <div class="ag-navlist">
+        <button type="button" class="ag-nav-item on" data-k="login"><span class="ic">&#8627;</span><span>登录</span></button>
+        <button type="button" class="ag-nav-item" data-k="reg"><span class="ic">&#65291;</span><span>企业注册</span><em class="tag">邀测</em></button>
+        <button type="button" class="ag-nav-item" data-k="code"><span class="ic">&#9672;</span><span>口令兑换</span></button>
+      </div>
+      <div class="ag-navfoot">
+        <span class="chip2">组织律 1+1+N</span>
+        <span class="ag-ver">桌面端本地渲染</span>
+      </div>
+    </nav>
+    <div class="ag-pane">
+    <div style="font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--t3,#8A94A8)">NUMX MAX · 组织智能体运行时</div>
+    <div style="font-size:20px;font-weight:800;color:var(--t1,#F5F7FA);margin-top:6px" id="ag-title">登录进入组织</div>
+    <div style="font-size:11px;color:var(--t3,#8A94A8);margin-top:4px" id="ag-sub">桌面端本地渲染——账号在超算互联网算力面跑的组织运行时</div>
+
+    <!-- 登录面 -->
+    <div id="ag-login" style="margin-top:18px">
+      <input id="ag-id" placeholder="手机号 / 用户名" style="width:100%;background:#0A101E;border:1px solid var(--line,#24344D);border-radius:10px;padding:11px 13px;color:var(--t1,#F5F7FA);font-size:14px;box-sizing:border-box">
+      <input id="ag-pw" type="password" placeholder="密码" style="width:100%;margin-top:10px;background:#0A101E;border:1px solid var(--line,#24344D);border-radius:10px;padding:11px 13px;color:var(--t1,#F5F7FA);font-size:14px;box-sizing:border-box">
+      <div id="ag-err" style="display:none;color:#F87171;font-size:12px;margin-top:8px"></div>
+      <button id="ag-login-btn" style="width:100%;margin-top:14px;background:linear-gradient(135deg,#C8842C,#E8B54D);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#1A1206;cursor:pointer">登录</button>
+      <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--t3,#8A94A8)">没账号？<a id="ag-to-reg" style="color:var(--cyan,#22D3EE);cursor:pointer">企业注册（邀测码）→</a></div>
+    </div>
+
+    <!-- 注册面 -->
+    <div id="ag-reg" style="margin-top:18px;display:none">
+      <input id="ag-r-ent" placeholder="企业名称" style="width:100%;background:#0A101E;border:1px solid var(--line,#24344D);border-radius:10px;padding:11px 13px;color:var(--t1,#F5F7FA);font-size:14px;box-sizing:border-box">
+      <select id="ag-r-ind" style="width:100%;margin-top:10px;background:#0A101E;border:1px solid var(--line,#24344D);border-radius:10px;padding:11px 13px;color:var(--t1,#F5F7FA);font-size:14px;box-sizing:border-box">
+        <option value="">选择行业（行业包=真组建部门舱）</option>
+        <option value="工业制造">工业制造（生产/质量/采购/销售/财务/行政六舱）</option>
+        <option value="电子商务">电子商务（运营/销售/客服/物流/财务五舱）</option>
+        <option value="政务">政务（服务/巡检/财务/行政四舱）</option>
+        <option value="其他">其他（行业包未上架——先进空组织，舱自己增）</option>
+      </select>
+      <input id="ag-r-head" placeholder="规模（如：50-100 人）" style="width:100%;margin-top:10px;background:#0A101E;border:1px solid var(--line,#24344D);border-radius:10px;padding:11px 13px;color:var(--t1,#F5F7FA);font-size:14px;box-sizing:border-box">
+      <input id="ag-r-user" placeholder="登录用户名" style="width:100%;margin-top:10px;background:#0A101E;border:1px solid var(--line,#24344D);border-radius:10px;padding:11px 13px;color:var(--t1,#F5F7FA);font-size:14px;box-sizing:border-box">
+      <input id="ag-r-pw" type="password" placeholder="密码（≥6 位）" style="width:100%;margin-top:10px;background:#0A101E;border:1px solid var(--line,#24344D);border-radius:10px;padding:11px 13px;color:var(--t1,#F5F7FA);font-size:14px;box-sizing:border-box">
+      <input id="ag-r-code" placeholder="内测邀测码（iv_ 开头）" style="width:100%;margin-top:10px;background:#0A101E;border:1px solid var(--line,#24344D);border-radius:10px;padding:11px 13px;color:var(--t1,#F5F7FA);font-size:14px;box-sizing:border-box">
+      <div style="text-align:right;margin-top:6px;font-size:12px"><a id="ag-daily-toggle" style="color:var(--cyan,#22D3EE);cursor:pointer">没有邀测码？用今日口令兑换 →</a></div>
+      <div id="ag-daily" style="display:none;margin-top:10px;border:1px dashed var(--line,#24344D);border-radius:10px;padding:12px">
+        <div style="font-size:12px;color:var(--t3,#8A94A8)">今日邀测口令（每日 0 点换新，名额有限）</div>
+        <div id="ag-daily-code" style="margin-top:6px;text-align:center;font-size:20px;font-weight:700;letter-spacing:6px;color:var(--t1,#F5F7FA)">拉取中…</div>
+        <div id="ag-daily-left" style="margin-top:2px;text-align:center;font-size:11px;color:var(--t3,#8A94A8)"></div>
+        <input id="ag-daily-phone" placeholder="手机号（专属码绑此号）" style="width:100%;margin-top:10px;background:#0A101E;border:1px solid var(--line,#24344D);border-radius:10px;padding:10px 12px;color:var(--t1,#F5F7FA);font-size:13px;box-sizing:border-box">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input id="ag-daily-sms" placeholder="短信验证码" style="flex:1;background:#0A101E;border:1px solid var(--line,#24344D);border-radius:10px;padding:10px 12px;color:var(--t1,#F5F7FA);font-size:13px;box-sizing:border-box">
+          <button id="ag-daily-send" style="white-space:nowrap;background:transparent;border:1px solid var(--cyan,#22D3EE);border-radius:10px;padding:0 12px;font-size:12px;color:var(--cyan,#22D3EE);cursor:pointer">发验证码</button>
+        </div>
+        <button id="ag-daily-redeem" style="width:100%;margin-top:10px;background:transparent;border:1px solid var(--cyan,#22D3EE);border-radius:10px;padding:10px;font-size:13px;font-weight:700;color:var(--cyan,#22D3EE);cursor:pointer">口令兑专属邀测码</button>
+        <div id="ag-daily-err" style="display:none;color:#F87171;font-size:12px;margin-top:6px"></div>
+      </div>
+      <div id="ag-r-err" style="display:none;color:#F87171;font-size:12px;margin-top:8px"></div>
+      <button id="ag-reg-btn" style="width:100%;margin-top:14px;background:linear-gradient(135deg,#C8842C,#E8B54D);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#1A1206;cursor:pointer">注册并进入组织</button>
+      <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--t3,#8A94A8)">已有账号？<a id="ag-to-login" style="color:var(--cyan,#22D3EE);cursor:pointer">← 回登录</a></div>
+    </div>
+    </div>
+  </div>
+</div>
+<script src="org-boot.js"></script>
+<script>
+// ═══ wb#138 认证闸面（壳内嵌——boot 前先过认证）═══
+function agErr(id, m) { const el = document.getElementById(id); if (m) { el.textContent = m; el.style.display = 'block'; } else el.style.display = 'none'; }
+function agShow(login) {
+  document.getElementById('ag-login').style.display = login ? '' : 'none';
+  document.getElementById('ag-reg').style.display = login ? 'none' : '';
+  document.getElementById('ag-title').textContent = login ? '登录进入组织' : '企业注册';
+  document.getElementById('ag-sub').textContent = login ? '桌面端本地渲染——账号在超算互联网算力面跑的组织运行时' : '注册=行业包自动组建五舱+全员上岗（注册进组织一炮成）';
+  if (typeof window.agSetNav === 'function') window.agSetNav(login ? 'login' : 'reg');
+}
+async function agApi(path, input = {}) { return apiRaw(path, input); }
+function agSaveToken(session) { // 落 localStorage nebula_auth（与 web 面同键=同会话面）+同步 TOKEN 变量（NumX critical①——const 死循环面封死：登录成=TOKEN 真值=boot 进壳）
+  try { localStorage.setItem('nebula_auth', JSON.stringify(session)); } catch {}
+  if (session?.token) TOKEN = session.token;
+}
+async function agLogin() {
+  agErr('ag-err', null);
+  const identifier = document.getElementById('ag-id').value.trim();
+  const password = document.getElementById('ag-pw').value;
+  if (!identifier || !password) return agErr('ag-err', '请输入账号和密码');
+  const btn = document.getElementById('ag-login-btn');
+  btn.disabled = true; btn.textContent = '登录中…';
+  try {
+    const s = await agApi('agentic.authLogin', { identifier, password });
+    if (!s?.token) throw new Error('登录面异常——无 token');
+    agSaveToken(s);
+    document.getElementById('authgate').style.display = 'none';
+    void boot(); // 认证过=进三屏（boot 面重跑）
+  } catch (e) {
+    agErr('ag-err', orgPublicErrorText(e));
+  } finally { btn.disabled = false; btn.textContent = '登录'; }
+}
+async function agRegister() {
+  agErr('ag-r-err', null);
+  const enterpriseName = document.getElementById('ag-r-ent').value.trim();
+  const industry = document.getElementById('ag-r-ind').value.trim();
+  const headcount = document.getElementById('ag-r-head').value.trim();
+  const username = document.getElementById('ag-r-user').value.trim();
+  const password = document.getElementById('ag-r-pw').value;
+  const betaCode = document.getElementById('ag-r-code').value.trim();
+  if (!enterpriseName || !industry || !headcount || !username || !password || !betaCode) return agErr('ag-r-err', '六面全填（企业名/行业/规模/用户名/密码/邀测码）');
+  const btn = document.getElementById('ag-reg-btn');
+  btn.disabled = true; btn.textContent = '注册中…';
+  try {
+    const s = await agApi('agentic.authRegister', { username, password, enterpriseName, industry, headcount, betaCode }); // 邀测码闸面（st_beta_invites 验真+原子消费——服务端面）
+    if (!s?.token) throw new Error('注册面异常——无 token');
+    agSaveToken(s);
+    document.getElementById('authgate').style.display = 'none';
+    void boot();
+  } catch (e) {
+    agErr('ag-r-err', orgPublicErrorText(e));
+  } finally { btn.disabled = false; btn.textContent = '注册并进入组织'; }
+}
+// ─── 口令换码面（彭总 2026-10-23 令：每日口令兑专属邀测码——壳内闭环，兑成自动填入邀测码字段）───
+let AG_DAILY = { codeText: '', left: 0 };
+let agDailyCooldown = 0;
+async function agDailyLoad() {
+  try {
+    const t = await agApi('betaDaily.today', {});
+    AG_DAILY = { codeText: t.codeText || '', left: t.left ?? 0 };
+    document.getElementById('ag-daily-code').textContent = AG_DAILY.codeText || '今日未放号';
+    document.getElementById('ag-daily-left').textContent = AG_DAILY.codeText ? `今日名额余 ${AG_DAILY.left}` : '';
+  } catch {
+    document.getElementById('ag-daily-code').textContent = '口令面未达——稍后重试';
+  }
+}
+async function agDailySend() {
+  const phone = document.getElementById('ag-daily-phone').value.trim();
+  const err = document.getElementById('ag-daily-err');
+  if (!/^1\d{10}$/.test(phone)) { err.textContent = '手机号格式不正确'; err.style.display = 'block'; return; }
+  if (agDailyCooldown > 0) return;
+  const btn = document.getElementById('ag-daily-send');
+  try {
+    await agApi('sms.sendCode', { phone, purpose: 'register' });
+    err.style.display = 'none';
+    agDailyCooldown = 60;
+    btn.textContent = '60s';
+    const tm = setInterval(() => { agDailyCooldown -= 1; btn.textContent = agDailyCooldown > 0 ? agDailyCooldown + 's' : '发验证码'; if (agDailyCooldown <= 0) clearInterval(tm); }, 1000);
+  } catch (e) { err.textContent = orgPublicErrorText(e); err.style.display = 'block'; }
+}
+async function agDailyRedeem() {
+  const phone = document.getElementById('ag-daily-phone').value.trim();
+  const smsCode = document.getElementById('ag-daily-sms').value.trim();
+  const err = document.getElementById('ag-daily-err');
+  if (!AG_DAILY.codeText) { err.textContent = '口令未拉到——稍后重试'; err.style.display = 'block'; return; }
+  if (!/^1\d{10}$/.test(phone) || !/^\d{6}$/.test(smsCode)) { err.textContent = '手机号/验证码格式不正确'; err.style.display = 'block'; return; }
+  try {
+    const r = await agApi('betaDaily.redeem', { codeText: AG_DAILY.codeText, phone, smsCode });
+    if (r?.ok && r.code) {
+      document.getElementById('ag-r-code').value = r.code; // 专属码自动填入（明文只活在本字段——不落库不落日志）
+      err.style.display = 'none';
+      document.getElementById('ag-daily').style.display = 'none';
+      agShow(false); // 回注册面（码已在栏——直填其余字段开户）
+      setTimeout(() => alert('专属邀测码已生成并填入注册栏（72 小时内有效）——填完上面字段点「注册并进入组织」'), 60);
+    } else { err.textContent = '兑换失败——稍后重试'; err.style.display = 'block'; }
+  } catch (e) { err.textContent = orgPublicErrorText(e); err.style.display = 'block'; }
+}
+document.getElementById('ag-daily-toggle').onclick = () => {
+  const el = document.getElementById('ag-daily');
+  const show = el.style.display === 'none';
+  el.style.display = show ? '' : 'none';
+  if (show) void agDailyLoad();
+  if (typeof window.agSetNav === 'function') window.agSetNav(show ? 'code' : 'reg');
+};
+document.getElementById('ag-daily-send').onclick = agDailySend;
+document.getElementById('ag-daily-redeem').onclick = agDailyRedeem;
+document.getElementById('ag-login-btn').onclick = agLogin;
+document.getElementById('ag-reg-btn').onclick = agRegister;
+document.getElementById('ag-to-reg').onclick = () => agShow(false);
+document.getElementById('ag-to-login').onclick = () => agShow(true);
+document.getElementById('ag-pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') agLogin(); });
+document.getElementById('ag-r-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') agRegister(); });
+</script>
+
+<header class="hd">
+  <div class="radar"></div>
+  <div><div class="ttl">NumX Max · 组织智能体运行时</div><div class="sub">ORGANIZATION RUNTIME CONSOLE</div></div>
+  <div class="sp"></div>
+  <button class="talk" onclick="openDrawer()">⌘ 对组织说话</button>
+  <span class="chip on">组织律 1+1+N 在轨</span>
+  <div class="live"><span class="dot"></span>RUNTIME LINKING</div>
+  <div class="bell" id="bell" onclick="toggleNoticeBox(event)" title="组织通知（待审/告警/叫人）">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <span class="nbadge" id="nbadge" style="display:none"></span>
+    <div class="nbox" id="nbox" style="display:none" onclick="event.stopPropagation()"></div>
+  </div>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+
+<div class="tk"><div class="tag">派活流水</div><div class="tkview"><div class="tkflow" id="tkf"></div></div></div>
+
+<div class="wrap" id="wrap">
+  <aside class="lt">
+    <div class="lt-h"><span class="t">组织架构 · 1+1+N</span><button class="foldbtn" onclick="document.getElementById('wrap').classList.toggle('fold')" id="foldbtn">⇤</button></div>
+    <div class="tree" id="tree"></div>
+  </aside>
+  <main class="ct" id="ct"></main>
+</div>
+
+<!-- 对话抽屉 -->
+<div class="mask" id="mask" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-h"><div class="av">⌘</div><div><div class="n">组织协同</div><div class="r">真实主管编排 · 组织律 1+1+N</div></div><button class="dr-x" onclick="closeDrawer()">✕</button></div>
+  <div class="msgs" id="msgs"></div>
+  <div class="inp">
+    <div class="hint">说明要交给部门主管编排的任务，提交后返回真实委派单号。</div>
+    <div class="inpbox"><select id="org-delegate-dept"><option value="">数据接通后选择部门</option></select><input id="inp" placeholder="说明任务，提交部门主管拆解分派"><button class="send" id="org-send-btn" onclick="send()">提交</button></div><div id="org-dispatch-note" style="font-size:11px;color:var(--t3);margin-top:6px">身份核验中…</div>
+  </div>
+</aside>
+
+<script>
+/* ═══ 真数据层（W1-04b：mock→harnessProxy 真 API——identityMe 三视图路由+降级诚实面）═══ */
+const LIVE = { mode: 'loading', err: null }; // loading → live | demo（API 挂=演示面诚实角标）
+async function api(path, input = {}) { return apiRaw(`harnessProxy.${path}`, input); }
+async function wbApi(path, input = {}) { return apiRaw(path, input); }
+function setBadge() { setBadgeFor(LIVE, 'RUNTIME'); }
+
+/* ═══ 演示数据清理[wb#135·彭总 2026-10-22 令·封装前置面]：mock 假数据全摘——未达=空态诚实面，不养幻影 ═══ */
+const BOSS={name:'企业负责人',role:'企业主管 · 1 · 派活中枢',led:'g',stat:[['今日派活','—'],['平均响应','—'],['闭环率','—']]}; // 骨架面留（真值 boot 覆写；未达=「—」不装数）
+const REV={name:'复核岗 NumX',role:'企业复核 · 1 · 契约 v1 口径',led:'g',stat:[['今日复核','—'],['打回','—'],['队列','—']]};
+let DEPTS=[]; // 演示数据摘除[wb#135]——未达空态面
+let SEATS=[]; // 演示数据摘除[wb#135]——未达空态面
+let PROD=[]; // 演示数据摘除[wb#135]——未达空态面
+let STEPS=[]; // 演示数据摘除[wb#135]——未达空态面
+let TICKS=[]; // 演示数据摘除[wb#135]——未达空态面
+let KPIS=[
+ ['今日派活','—','','未接通','var(--cyan)'],['在岗工位','—','','未接通','var(--cyan)'],
+ ['复核通过率','—','','未接通','var(--mint)'],['算子调用','—','次','口径挂账 G4','var(--violet)'],
+ ['实时告警','—','条','未接通','var(--amber)'],['今日能耗','—','万度','口径挂账 G5','var(--mint)'],
+]; // wb#135：KPI 假值摘（NumX 复锚 critical②）——骨架=标签+「—」空面，挂账标留（口径面在案）；未达不装数
+let REVQ=[]; // wb#135：假复核单摘（NumX 复锚 critical①——假工单号在这块[字面无号=残影钉不斥注释]）
+
+/* ═══ 组织树 ═══ */
+const $=s=>document.querySelector(s);
+let curView='dash', curDept='';
+function onWorkspaceDirectoryReset() {
+  curDept = '';
+  curView = 'dash';
+  DEPTS = [];
+  SEATS = []; PROD = []; STEPS = []; TICKS = []; REVQ = [];
+  COLLAB = { live: false, links: [], orders: [] };
+  KPIS = [
+    ['今日派活','—','','未接通','var(--cyan)'],['在岗工位','—','','未接通','var(--cyan)'],
+    ['复核通过率','—','','未接通','var(--mint)'],['算子调用','—','次','口径挂账 G4','var(--violet)'],
+    ['实时告警','—','条','未接通','var(--amber)'],['今日能耗','—','万度','口径挂账 G5','var(--mint)'],
+  ];
+  renderTree();
+  const delegateSelect = document.getElementById('org-delegate-dept');
+  if (delegateSelect) delegateSelect.innerHTML = '<option value="">暂无真实部门舱</option>';
+  renderDash();
+}
+let ORG_BOOT_SEQ=0;
+// W5-2 协同空间数据面（mock 兜底=空面诚实标——真数据 boot 面覆写）
+let COLLAB = { live: false, links: [], orders: [] };
+function led(l){return `<span class="led ${l}"></span>`}
+function renderTree(){
+  let h=`<div class="tnode" data-v="boss"><div class="tn-h"><div class="ava boss">总</div><div class="tn-t"><div class="tn-n">${BOSS.name}</div><div class="tn-r">企业主管 · 1</div></div>${led(BOSS.led)}</div><div class="tn-k"><span>派活 <b>—</b></span><span>闭环 <b>—</b></span></div></div>`;
+  h+=`<div class="tnode" data-v="rev"><div class="tn-h"><div class="ava rev">复</div><div class="tn-t"><div class="tn-n">${REV.name}</div><div class="tn-r">企业复核 · 1</div></div>${led(REV.led)}</div><div class="tn-k"><span>复核 <b>—</b></span><span>打回 <b>—</b></span></div></div>`;
+  h+=`<div class="lvl2">`;
+  for(const d of DEPTS){
+    h+=`<div class="tnode ${curView==='cabin'&&curDept===d.key?'on':''}" data-v="cabin" data-k="${escH(d.key)}"><div class="tn-h"><div class="ava dept">${escH(d.n[0])}</div><div class="tn-t"><div class="tn-n">${escH(d.n)} · ${escH(d.h)}</div><div class="tn-r">${d.c} 工位 · ${d.k2[0]} ${d.k2[1]}</div></div>${led(d.led)}</div></div>`;
+  }
+  h+=`</div>`;
+  $('#tree').innerHTML=h;
+  $('#tree').querySelectorAll('.tnode').forEach(n=>n.onclick=()=>{ const k=n.dataset.k; if(k) goCabin(k); });
+}
+
+/* ═══ 版B：驾驶舱 ═══ */
+function renderDash(){
+  curView='dash'; renderTree();
+  $('#ct').innerHTML=`<div class="view">
+    <div id="workspace-strip">${renderWorkspaceStrip()}</div>
+    <div class="kpis">${KPIS.map(k=>`<div class="kpi" style="--kc:${k[4]}"><div class="kl">${escH(k[0])}</div><div class="kv">${escH(k[1])}<small> ${escH(k[2])}</small></div><div class="kd ${k[3].includes('▼')?'dn':k[4].includes('amber')?'wn':'up'}">${escH(k[3])}</div></div>`).join('')}</div>
+    <div class="duo">
+      <section>
+        <div class="sec-h">部门舱实时矩阵<button class="clb" style="margin-left:auto" onclick="addCabinUi()">+ 增设部门舱</button></div>
+        <div class="depts">${DEPTS.length ? DEPTS.map(d=>{
+          const hasRing=typeof d.ring==='number';
+          const col=!hasRing?'var(--t3)':d.ring>=90?'var(--mint)':d.ring>=75?'var(--cyan)':d.ring>=65?'var(--amber)':'var(--red)';
+          const off=hasRing?(138.2*(1-d.ring/100)).toFixed(1):'138.2';
+          return `<div class="dc" onclick="goCabin(this.dataset.key)" data-key="${escH(d.key)}">
+            <div class="dh"><div><div class="dn">${escH(d.n)}</div><div class="dr">舱长 ${escH(d.h)} · ${d.c} 工位</div></div>${led(d.led)}</div>
+            <div class="ring"><svg width="52" height="52"><circle cx="26" cy="26" r="22" fill="none" stroke="#1a2540" stroke-width="4"/><circle cx="26" cy="26" r="22" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" stroke-dasharray="138.2" stroke-dashoffset="${off}"/></svg><div class="rv2"><b style="color:${col}">${hasRing?d.ring:'—'}</b><span>健康</span></div></div>
+            <div class="kp"><div class="k"><div class="kl">${d.k1[0].toUpperCase()}</div><div class="kv">${d.k1[1]}</div></div><div class="k"><div class="kl">${d.k2[0].toUpperCase()}</div><div class="kv">${d.k2[1]}</div></div></div>
+            <div class="news">${d.news}</div>
+            <div class="crew">数字员工 ${d.c} 工位</div>
+            <div class="go">进入舱驾驶舱 →</div><div class="cnt">OPEN ${d.k2[1]}</div>
+          </div>`;}).join('') : '<div class="cempty">暂无真实部门舱——请先完成组织配置</div>'}
+        </div>
+      </section>
+      <aside>
+        <div class="boss"><div class="bh"><div class="bava b">总</div><div><div class="bn">${BOSS.name}</div><div class="br">${BOSS.role}</div></div><span class="led g" style="margin-left:auto"></span></div>
+          <div class="stat">${BOSS.stat.map(s=>`<div class="s"><div class="sl">${s[0]}</div><div class="sv">${s[1]}</div></div>`).join('')}</div></div>
+        <div class="revx"><div class="bh"><div class="bava r">复</div><div><div class="bn">${REV.name}</div><div class="br">${REV.role}</div></div><span class="led g" style="margin-left:auto"></span></div>
+          <div class="stat">${REV.stat.map(s=>`<div class="s"><div class="sl">${s[0]}</div><div class="sv">${s[1]}</div></div>`).join('')}</div>
+          <div style="margin-top:9px">${REVQ.map(q=>`<div class="qitem"><span class="qt">${escH(q[0])}</span><span class="qm">${escH(q[1])}</span><span class="qb ${q[2] === 'pass' ? 'pass' : q[2] === 'back' ? 'back' : 'hold'}">${escH(q[3])}</span></div>`).join('')}</div></div>
+      </aside>
+    </div>
+    <div class="collab" id="collab"></div>
+    <div class="flowline">
+      <div class="fl-h">派活链 · 主管→部门→复核（今日关键路径）</div>
+      <div class="fl-b">${STEPS.map((s,i)=>`<div class="fstep"><div class="fno ${s[4]==='ok'?'ok':s[4]==='rev'?'rev':''}">${i+1}</div><div><div class="ft"><b style="color:${s[0]==='ok'?'var(--cyan)':s[0]==='rev'?'var(--violet)':'var(--mint)'}">${escH(s[1])}</b> ${escH(s[2])}</div><div class="fm">${s[3]}</div></div></div>`).join('')}</div>
+    </div>
+  </div>`;
+  renderCollab(); // W5-2：视图重渲时协同区跟渲（切舱回来不丢面）
+}
+
+/* ═══ 版A：舱驾驶舱 ═══ */
+function goCabin(key){ curDept=key; curView='cabin'; renderTree(); renderCabin(); }
+function renderCabin(){
+  const d=DEPTS.find(x=>x.key===curDept);
+  if (!d) { $('#ct').innerHTML=`<div class="view"><div class="back" onclick="renderDash()">← 返回全企驾驶舱</div><div id="workspace-strip">${renderWorkspaceStrip()}</div><div class="cempty">部门未映射：请从真实部门舱进入，未显示其他部门数据</div></div>`; return; }
+  const seats=SEATS.filter(s=>String(s[0]||'').startsWith(`dept-${d.key}-`) || s[1]===d.n || s[1]===d.key);
+  const busy=seats.filter(s=>s[2]==='busy').length;
+  const known=seats.filter(s=>s[2]!=='unknown').length;
+  const unknown=seats.length-known;
+  const healthText=typeof d.ring!=='number'?'健康口径未开':d.ring>=90?'健康运行':d.ring>=65?'关注':'异常跟进';
+  $('#ct').innerHTML=`<div class="view">
+    <div class="back" onclick="renderDash()">← 返回全企驾驶舱</div>
+    <div id="workspace-strip">${renderWorkspaceStrip()}</div>
+    <div class="cabin-head">
+      <div><div class="crumb">ORG / 1+1+N / ${escH(d.n.toUpperCase())}</div><h1>${escH(d.n)}驾驶舱</h1></div>
+      <span class="chip ${d.led==='g'?'on':''}">${healthText}</span>
+      <span class="chip">舱长 ${escH(d.h)}</span><span class="chip">${d.c} 工位在册</span>
+    </div>
+    <div class="kpis4">
+      <div class="kpi"><div class="kl">数字员工</div><div class="kv">${d.k1[1]}</div><div class="kd">真实在册工位</div></div>
+      <div class="kpi"><div class="kl">在办任务</div><div class="kv">${d.k2[1].split(' ')[0]}<small> 单</small></div><div class="kd">真实队列</div></div>
+      <div class="kpi"><div class="kl">今日派活</div><div class="kv">${d.today == null ? '—' : d.today}<small> 件</small></div><div class="kd">${d.doneToday == null ? '暂无当日口径' : `已结 ${d.doneToday}`}</div></div>
+      <div class="kpi"><div class="kl">复核打回</div><div class="kv">${d.rejected == null ? '—' : d.rejected}<small> 件</small></div><div class="kd">真实复核记录</div></div>
+    </div>
+    <div class="duo2">
+      <div class="card"><div class="card-h">工位实时态<span class="sp"></span><span class="more">${known ? `BUSY ${busy}/${known}` : 'BUSY —'}${unknown ? ` · 状态未知 ${unknown}` : ''}</span></div>
+        <div class="seats">${seats.length ? seats.map(s=>`<div class="seat ${s[2]==='busy'?'busy':''}"><div class="sn">${s[2]==='busy'?'<span class="led g"></span>':'<span class="led dim"></span>'}${escH(s[0])}</div><div class="sr">${escH(s[1])}</div>${s[2]==='unknown'?'<div class="st i">状态未知</div>':s[3]?`<div class="task">${escH(s[3])}</div>`:'<div class="st i">— 空闲</div>'}</div>`).join('') : '<div class="cempty">暂无真实工位队列</div>'}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="card-h">算子调用 · 本周</div>
+          <div class="ops"><div class="cempty">算子统计面未开（口径挂账 G4）</div></div>
+        </div>
+        <div class="card"><div class="card-h">${ME_ORG_ROLE === 'admin' ? '今日产出' : '全厂今日产出（厂内公开）'}</div>
+          <div class="prod">${PROD.length ? PROD.map(p=>`<div class="pr"><span class="pt">${escH(p[0])}</span><span class="pm">${p[1]}</span><span class="pb">${p[2]}</span></div>`).join('') : '<div class="cempty">暂无真实产出</div>'}</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  $('#ct').scrollTop=0;
+}
+
+/* ═══ 对话抽屉 ═══ */
+const MSGS0=[
+ {r:'a',t:'这里只提交真实主管编排。返回委派单号后，请到任务流水查看实际进度。',m:''},
+]; // 欢迎语说明真实能力边界，不模拟数字员工回复
+function msgHTML(m){
+  if(m.r==='u') return `<div class="msg u"><div class="ma">我</div><div class="mb"><div class="mt">${escH(m.t)}</div><div class="mm">${escH(m.m)} · 已读</div></div></div>`;
+  let card='';
+  if(m.card){
+    card=`<div class="assign"><div class="ah">⌘ ${escH(m.card.title)}</div><div class="ab">
+      ${m.card.items.map(i=>`<div class="ait"><span class="ic">✓</span><span class="it"><b style="color:var(--cyan)">${escH(i[0])}</b> ${escH(i[1])}</span><span class="iv">${escH(i[2])}</span></div>`).join('')}
+      <div class="asteps">${m.card.steps.map(s=>`<span class="astep ${escH(s[1])}">${s[1]==='done'?'✓ ':s[1]==='doing'?'● ':''}${escH(s[0])}</span>`).join('<span style="color:var(--t3)">→</span>')}</div>
+    </div></div>`;
+  }
+  return `<div class="msg a"><div class="ma">⌘</div><div class="mb"><div class="mt">${escH(m.t)}${card}</div><div class="mm">${escH(m.m)} · 组织协同</div></div></div>`;
+}
+function openDrawer(){
+  $('#mask').classList.add('open'); $('#drawer').classList.add('open');
+  if(!$('#msgs').innerHTML) { $('#msgs').innerHTML=MSGS0.map(msgHTML).join(''); }
+  $('#msgs').scrollTop=1e9;
+}
+function closeDrawer(){ $('#mask').classList.remove('open'); $('#drawer').classList.remove('open'); }
+let ME_ORG_ROLE = '';
+function syncOrgDispatchAccess() {
+  const allowed = ME_ORG_ROLE === 'admin';
+  const input = $('#inp'), sel = $('#org-delegate-dept'), btn = $('#org-send-btn'), note = $('#org-dispatch-note');
+  const unavailable = LIVE.mode === 'loading' || LIVE.mode === 'demo' || !DEPTS.length;
+  const disabled = !allowed || unavailable || ORG_DISPATCHING;
+  if (input) input.disabled = disabled;
+  if (sel) sel.disabled = disabled;
+  if (btn) btn.disabled = disabled;
+  if (note) note.textContent = LIVE.mode === 'loading'
+    ? '身份与数据加载中…'
+    : LIVE.mode === 'demo'
+      ? '数据未接通：请待运行时恢复后再提交真实主管编排'
+      : !allowed
+        ? '当前席只读：主管编排仅企业负责人'
+        : !DEPTS.length
+          ? '暂无真实部门舱，暂不提交'
+          : !sel?.value
+            ? '请选择真实部门舱后再提交主管编排'
+            : LIVE.mode === 'live'
+              ? '负责人可提交真实主管编排；返回委派单号后由后台拆解分派'
+              : '部分数据未读回，仍可提交真实主管编排';
+}
+
+let ORG_DISPATCHING = false;
+$('#org-delegate-dept').addEventListener('change', syncOrgDispatchAccess);
+async function send(){
+  const v=$('#inp').value.trim(); if(!v) return;
+  if (ME_ORG_ROLE !== 'admin') { alert('主管编排仅企业负责人可执行；当前席只读'); return; }
+  if (LIVE.mode === 'loading') { alert('身份与数据加载中，请稍后再提交'); return; }
+  if (LIVE.mode === 'demo') { alert('数据未接通——请待运行时恢复后再提交'); return; }
+  const dept=$('#org-delegate-dept').value;
+  if (!dept) { alert('请选择真实部门舱'); return; }
+  if (!DEPTS.some(d => d.key === dept)) { alert('部门映射已变化，请刷新后重新选择'); return; }
+  if (ORG_DISPATCHING) return;
+  ORG_DISPATCHING = true;
+  const input = $('#inp');
+  const btn=$('#org-send-btn');
+  input.disabled = true; btn.disabled=true; syncOrgDispatchAccess();
+  try {
+    const r=await api('delegate', { dept, task: v, idemKey: idemKeyFor(dept, v) });
+    const delegationId=Number(r?.delegationId||0);
+    if (!r?.ok || !delegationId) throw new Error('委派单号缺失');
+    clearIdemKey();
+    const dedupNote = r.dedup ? '（幂等复用）' : '';
+    $('#msgs').insertAdjacentHTML('beforeend',`<div class="msg u"><div class="ma">我</div><div class="mb"><div class="mt">${escH(v)}</div><div class="mm">刚刚 · 已提交${dedupNote}</div></div></div>`);
+    $('#msgs').insertAdjacentHTML('beforeend',`<div class="msg a" id="org-delegation-${delegationId}"><div class="ma">⌘</div><div class="mb"><div class="mt">主管编排 #${delegationId} 已受理；open（后台执行中）</div><div class="mm">真实后端返回</div></div></div>`);
+    void delegationStatusText(delegationId).then((statusText) => {
+      const el = document.getElementById(`org-delegation-${delegationId}`);
+      if (el) el.innerHTML = `<div class="ma">⌘</div><div class="mb"><div class="mt">主管编排 #${delegationId} 已受理；${escH(statusText)}</div><div class="mm">真实后端返回</div></div></div>`;
+    });
+    $('#inp').value=''; $('#msgs').scrollTop=1e9;
+  } catch (e) { alert('主管编排失败：'+String(e?.message||e).slice(0,100)); }
+  finally { ORG_DISPATCHING = false; syncOrgDispatchAccess(); }
+}
+$('#inp').addEventListener('keydown',e=>{if(e.key==='Enter')send();});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrawer(); });
+
+/* ═══ ticker + 时钟 ═══ */
+function renderTicker() {
+  const one=TICKS.map(t=>`<span class="tki"><span class="sev ${t[0]}"></span><b>${escH(t[1])}</b>${escH(t[2])}</span>`).join('');
+  $('#tkf').innerHTML=one+one+one+one;
+}
+renderTicker();
+
+setInterval(()=>{const d=new Date();$('#clock').textContent=d.toTimeString().slice(0,8);},1000);
+
+
+// ═══ W3-02 推送三通铃铛（出站队列真源——30s 轮询+裁决联动已读[harness 面]；未达静默不装） ═══
+const escJs = (value) => {
+  const raw = String(value ?? '');
+  if (/^-?\d+$/.test(raw)) {
+    const numeric = Number(raw);
+    if (Number.isSafeInteger(numeric) && String(numeric) === raw) return raw;
+  }
+  return escH(JSON.stringify(raw));
+};
+function dayKey(value) {
+  const parsed = value instanceof Date ? value.getTime() : parseOrgTimestamp(value);
+  if (parsed == null) return '';
+  return new Date(parsed + 8 * 3600_000).toISOString().slice(0, 10);
+}
+function todayString() { return dayKey(new Date()); }
+// W5-2 协同空间渲染（真数据面——未达=挂账标诚实面；动作面=wb 跨企业端口全面打开[彭总 2026-10-23 令]）
+function renderCollab() {
+  const el = $('#collab');
+  if (!el) return;
+  if (!COLLAB.live) {
+    el.innerHTML = `<div class="cl-h">跨企业协同空间</div><div class="cempty">协同面未达（API 未达）</div>`;
+    return;
+  }
+  const myFid = Number(COLLAB.myFactory) || 0; // 厂号面=identityMe 解出（不硬编码——HQ 常量挂账标面摘）
+  const sameFactory = (left, right) => Number(left) > 0 && Number(right) > 0 && String(left) === String(right);
+  const linkRows = COLLAB.links.map(l => {
+    const mineA = sameFactory(l.factory_a, myFid);
+    const mineB = sameFactory(l.factory_b, myFid);
+    const other = mineA ? l.factory_b : mineB ? l.factory_a : '未知';
+    const stTxt = l.status === 'active' ? '已联通' : l.status === 'pending' ? (mineB ? '待我确认' : '待对方确认') : '已暂停';
+    const stCls = ['active', 'pending', 'suspended'].includes(l.status) ? l.status : 'unknown';
+    let act = '';
+    if (l.status === 'pending' && mineB) act = `<button class="clb" onclick="collabDecideLinkDo(${escJs(l.link_id)},'active')">确认成链</button><button class="clb clb-w" onclick="collabDecideLinkDo(${escJs(l.link_id)},'suspended')">暂停</button>`;
+    else if (l.status === 'active') act = `<button class="clb" onclick="collabSendUi(${escJs(l.link_id)})">发协同单</button>`;
+    return `<div class="clink"><b>厂 ${escH(other)}</b>${escH(l.note || '协同链')}<span class="st st-${stCls}">${stTxt}</span>${act}</div>`;
+  }).join('');
+  const ordRows = COLLAB.orders.map(o => {
+    const out = sameFactory(o.from_factory, myFid);
+    let act = '';
+    if (!out && o.status === 'sent') act = `<button class="clb" onclick="collabDecideOrderDo(${escJs(o.order_id)},'accepted')">接单</button><button class="clb clb-w" onclick="collabDecideOrderDo(${escJs(o.order_id)},'rejected')">拒</button>`;
+    else if (!out && o.status === 'accepted') act = `<button class="clb" onclick="collabDecideOrderDo(${escJs(o.order_id)},'delivering')">开始交付</button>`;
+    else if (!out && o.status === 'delivering') act = `<button class="clb" onclick="collabDeliverUi(${escJs(o.order_id)})">交付</button>`;
+    else if (out && o.status === 'sent') act = `<button class="clb clb-w" onclick="collabDecideOrderDo(${escJs(o.order_id)},'rejected')">撤回</button>`;
+    return `<div class="co"><span class="dir ${out ? 'out' : 'in'}">${out ? '我发→' : '←我收'}</span><span class="tt">${escH(o.title)}</span><span style="color:var(--t3);font-size:11px">${String(o.created_at || '').replace('T', ' ').slice(0, 16)}</span><span class="st2">${escH(o.status)}${o.payload_uri ? ' · 有交付件' : ''}</span>${act}</div>`;
+  }).join('');
+  el.innerHTML = `<div class="cl-h">跨企业协同空间 · ${COLLAB.links.length} 链 ${COLLAB.orders.length} 单<button class="clb" style="float:right" onclick="collabProposeUi()">+ 发起协同链</button></div>
+    <div class="cl-links">${linkRows || '<div class="cempty">暂无协同链——发起协同（对方确认后成链）= 跨企业外协/图纸会审/质检协同自此始</div>'}</div>
+    ${ordRows || '<div class="cempty">暂无协同单</div>'}`;
+}
+
+// 增舱面（彭总 2026-10-23 立项：企业增部门舱权限面——admin 闸在服务端 entCabin.create；舱-部门同图双写在服务端）
+async function addCabinUi() {
+  const name = prompt('新部门舱名称（如：物流舱）：'); if (!name || !name.trim()) return;
+  const nm = name.trim().slice(0, 32);
+  const uuid = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+  const code = `x_${uuid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10)}`;
+  try {
+    const j = await wbApi('entCabin.create', { code, name: nm });
+    if (!j?.ok) throw new Error('舱码重复或服务端未受理，请重试');
+    alert(`部门舱「${nm}」已建（舱码 ${j.code || code}）——负责人任命走「负责人邀请码」面；数字员工上岗走超市/订阅包面`); location.reload();
+  } catch (e) { alert('增舱未达：' + String(e?.message || e).slice(0, 100)); }
+}
+
+// W5-2 协同动作面（彭总令：跨企业端口全面打开——全走 harnessProxy 五端点；败=alert 诚实面不静默）
+async function refreshCollab() {
+  try {
+    const c = await api('collabList', { limit: 20 });
+    if (c?.ok === true) { COLLAB.links = c.links || []; COLLAB.orders = c.orders || []; renderCollab(); }
+  } catch { /* 刷新败=保旧面 */ }
+}
+async function collabProposeUi() {
+  const to = prompt('对方企业厂号（工厂 ID 数字）：'); if (!to) return;
+  const note = prompt('协同备注（可空）：') || '';
+  try {
+    const r = await api('collabPropose', { toFactoryId: Number(to), note });
+    if (r?.ok) { alert(r.dedup ? '已有协同链（幂等回链）' : '已发起——待对方确认成链'); refreshCollab(); }
+    else alert('发起失败：' + (r?.error || 'unknown'));
+  } catch (e) { alert('发起失败：' + (e.message || 'network')); }
+}
+async function collabDecideLinkDo(linkId, decision) {
+  try {
+    const r = await api('collabLinkDecide', { linkId, decision });
+    if (r?.ok) refreshCollab(); else alert('操作失败：' + (r?.error || 'unknown'));
+  } catch (e) { alert('操作失败：' + (e.message || 'network')); }
+}
+async function collabSendUi(linkId) {
+  const title = prompt('协同单标题：'); if (!title) return;
+  const task = prompt('任务内容（交付要求/口径）：'); if (!task) return;
+  try {
+    const r = await api('collabSend', { linkId, title, task });
+    if (r?.ok) { alert('已发单——对方组织接单后执行'); refreshCollab(); }
+    else alert('发单失败：' + (r?.error || 'unknown'));
+  } catch (e) { alert('发单失败：' + (e.message || 'network')); }
+}
+async function collabDecideOrderDo(orderId, decision) {
+  try {
+    const r = await api('collabOrderDecide', { orderId, decision });
+    if (r?.ok) refreshCollab(); else alert('操作失败：' + (r?.error || 'unknown'));
+  } catch (e) { alert('操作失败：' + (e.message || 'network')); }
+}
+async function collabDeliverUi(orderId) {
+  const payloadUri = prompt('交付件链接（可空——先过本厂复核岗再交[人类各自复核面]）：') || '';
+  const note = prompt('交付说明（可空）：') || '';
+  try {
+    const r = await api('collabOrderDecide', { orderId, decision: 'delivered', payloadUri, note });
+    if (r?.ok) refreshCollab(); else alert('交付失败：' + (r?.error || 'unknown'));
+  } catch (e) { alert('交付失败：' + (e.message || 'network')); }
+}
+
+/* boot——真数据面：identityMe 三视图路由（admin→L1 全企屏｜manager/dept 命中→L2 舱屏｜staff→L3 岗位屏[首期落 L2 面]） */
+async function boot() {
+  const bootSeq = ++ORG_BOOT_SEQ;
+  const bootToken = TOKEN;
+  resetWorkspaceDirectory(); // 新会话启动立即清除上一账号目录与票据，禁止残影越权展示
+  $('#ct').innerHTML = '<div class="view"><div class="cempty">工作区目录加载中…</div></div>';
+  // wb#138 认证闸（彭总令面）：无 token=显登录屏不进壳（开箱即注册登录面）
+  if (!TOKEN) {
+    document.getElementById('authgate').style.display = 'flex';
+    agShow(true);
+    return; // 不 boot——登录成后 agLogin/agRegister 里调 boot()
+  }
+  // 角标插入顶栏 live 前
+  setBadge();
+  try {
+    const me = await api('identityMe');
+    if (bootSeq !== ORG_BOOT_SEQ || bootToken !== TOKEN) return;
+    persistQueryToken(me);
+    ME_ORG_ROLE = me.orgRole || '';
+    NOTICE_DEPT = '';
+    syncOrgDispatchAccess();
+    if (me.orgRole === 'staff') {
+      const query = 'dept=' + encodeURIComponent(me.deptId || '');
+      // staff 先回岗位屏，再由岗位屏读工作区；本页不显示永久“加载中”。
+      $('#ct').innerHTML = '<div class="view"><div class="cempty">工作区目录由岗位屏读取，正在进入岗位屏…</div></div>';
+      navigateOrgView('station', query);
+      return;
+    }
+    const workspaceResult = loadWorkspaceDirectory();
+    const cabinMap = await wbApi('entCabin.map').catch(() => null);
+    if (bootSeq !== ORG_BOOT_SEQ || bootToken !== TOKEN) return;
+    let scopedDept = '';
+    let targetCabin = null;
+    if (me.orgRole !== 'admin') {
+      const memberCabins = Array.isArray(cabinMap?.cabins) ? cabinMap.cabins : [];
+      targetCabin = me.deptId
+        ? (memberCabins.find(c => c.departmentId === me.deptId || c.code === me.deptId) || null)
+        : (memberCabins.length === 1 ? memberCabins[0] : null);
+      if (!targetCabin) {
+        // 主异常面先落，目录到达后只重绘本分支；既不永久 loading，也不让次级请求阻塞驾驶舱。
+        const renderUnmapped = () => {
+          if (bootSeq !== ORG_BOOT_SEQ || bootToken !== TOKEN) return;
+          const scopeMessage = cabinMap ? '当前部门未映射，请改选你已加入的部门舱；未读取其他部门数据' : '部门映射未读回（API 未达）';
+          const choices = memberCabins.length
+            ? memberCabins.map(c => `<a href="cabin.html?dept=${encodeURIComponent(c.code)}">${escH(c.name)}</a>`).join(' · ')
+            : '';
+          $('#ct').innerHTML = `<div class="view"><div id="workspace-strip">${renderWorkspaceStrip()}</div><div class="cempty">${scopeMessage}${choices ? `<br>${choices}` : ''}</div></div>`;
+        };
+        void workspaceResult.then(() => { if (bootSeq === ORG_BOOT_SEQ && bootToken === TOKEN) redrawWorkspaceStrip(); });
+        LIVE.mode = cabinMap ? 'partial' : 'demo';
+        DEPTS = [];
+        renderTree();
+        setBadge();
+        syncOrgDispatchAccess();
+        renderUnmapped();
+        return;
+      }
+      scopedDept = targetCabin.code;
+      NOTICE_DEPT = scopedDept;
+    }
+    startNoticeLoop(); // 管理员看全厂；部门席先看本人舱，通知同源收敛
+    const scopeInput = scopedDept ? { dept: scopedDept } : {};
+    // 数据源真拉：非 admin 先确定本人舱再拉组织读面；deptOrders 属厂内公开数据，标题单独明示
+    const [load, revs, revsOk, revsNo, tasks, orders, samples, health, collab] = await Promise.all([
+      api('load', scopeInput).catch(() => null),
+      api('reviews', { status: 'pending', limit: 20, ...scopeInput }).catch(() => null),
+      api('reviews', { status: 'approved', limit: 50, ...scopeInput }).catch(() => null),
+      api('reviews', { status: 'rejected', limit: 50, ...scopeInput }).catch(() => null),
+      api('tasks', { limit: 50, ...scopeInput }).catch(() => null),
+      api('deptOrders', {}).catch(() => null),
+      api('feedbackSamples', scopeInput).catch(() => null),
+      api('cabinHealth', scopeInput).catch(() => null),
+      api('collabList', { limit: 20 }).catch(() => null),
+    ]);
+    if (bootSeq !== ORG_BOOT_SEQ || bootToken !== TOKEN) return;
+    // —— 映射面（真数据覆盖 mock——口径对齐壳区）
+    // KPI 带真口径（W1-05 接线面：幻影不养——真 0 不假）
+    if (tasks?.items) {
+      const today = todayString();
+      const todayN = tasks.items.filter(t => dayKey(t.created_at) === today).length;
+      const doneN = tasks.items.filter(t => t.status === 'done' && dayKey(t.finished_at || t.created_at) === today).length;
+      const dispatchLabel = me.orgRole === 'admin' ? '全厂今日派活' : `${targetCabin?.name || '本部门'}今日派活`;
+      KPIS[0] = [dispatchLabel, String(todayN), '件', `▲ 今日完成 ${doneN}`, 'var(--cyan)'];
+    }
+    const pendingN = revs?.count ?? null, okN = revsOk?.count ?? null, noN = revsNo?.count ?? null;
+    const decidedKnown = okN != null && noN != null;
+    const passRate = decidedKnown && (okN + noN) > 0 ? (okN * 100 / (okN + noN)).toFixed(1) : '—';
+    const decidedText = decidedKnown ? `已决 ${okN + noN}` : '已决未读回';
+    KPIS[2] = ['复核通过率', passRate, passRate === '—' ? '' : '%', `待审 ${pendingN ?? '—'} · ${decidedText}`, 'var(--mint)'];
+    // cabinMap 允许读取失败为 null；此处必须空安全，不能把其他已读数据一起降级成 demo。
+    const scopedCabins = Array.isArray(cabinMap?.cabins)
+      ? (me.orgRole === 'admin' ? cabinMap.cabins : cabinMap.cabins.filter(c => String(c.code) === scopedDept))
+      : [];
+    if (cabinMap?.cabins) {
+      const agentN = scopedCabins.reduce((a, c) => a + (c.agents || 0), 0);
+      const openN = scopedCabins.reduce((a, c) => a + (c.openTasks || 0), 0);
+      KPIS[1] = ['在岗工位', String(agentN), '', `${openN} 在办`, 'var(--cyan)'];
+    }
+    // 挂账口径角标三面（诚实面——不装真：G2 健康环/G4 算子统计/G5 能耗挂账在案）
+    KPIS[3] = ['算子调用', '—', '次', '口径挂账 G4（算子统计面未开——假数字摘除[NumX medium]）', 'var(--violet)'];
+    const warnN = revs?.items ? revs.items.filter(i => i.item_type === 'warn').length : '—';
+    KPIS[4] = ['实时告警', String(warnN), '条', `复核 pending ${pendingN ?? '—'}（口径挂账 G5）`, 'var(--amber)'];
+    KPIS[5] = ['今日能耗', '—', '万度', '口径挂账 G5（能耗口径面未开——假数字摘除）', 'var(--mint)'];
+    // 五舱矩阵（entCabin.map 映射——舱 code 对齐 mock 键面；健康环 mock 挂账口径）
+    // W5-2 协同空间真值覆写（达=真链真单[live 面]；未达=挂账标留）
+    if (collab?.ok === true) { COLLAB = { live: true, myFactory: Number(me.factoryId) || 0, links: collab.links || [], orders: collab.orders || [] }; }
+    renderCollab();
+    // 工位队列与部门舱从真实响应重建；没有数据就不生成部门或忙碌比例。
+    if (load?.items) {
+      SEATS = load.items.map((s) => {
+        const rawQueue = s.queueDepth ?? s.queue_depth;
+        const q = Number(rawQueue);
+        const known = rawQueue != null && Number.isFinite(q) && q >= 0;
+        return [String(s.stationKey ?? s.station_key ?? ''), String(s.dept || ''), known ? (q > 0 ? 'busy' : 'idle') : 'unknown', known ? (q > 0 ? `${q} 在办` : '') : '状态未知'];
+      });
+    } else SEATS = [];
+    const healthLive = !!(health && health.items);
+    const hOf = {};
+    if (healthLive) health.items.forEach(hh => { hOf[hh.dept] = hh; });
+    if (cabinMap?.cabins) {
+      const visibleCabins = scopedCabins;
+      DEPTS = visibleCabins.map(c => ({
+        key: String(c.code), n: String(c.name || c.code), h: String(c.headName || '待任命'),
+        c: Number(c.agents ?? 0), led: 'dim', ring: null,
+        k1: ['工位', String(Number(c.agents ?? 0))], k2: ['在办', `${Number(c.openTasks ?? 0)} 单`],
+        news: `<b>${escH(c.name)}</b> 在办 ${Number(c.openTasks ?? 0)} 单 · 数字员工 ${Number(c.agents ?? 0)} 工位${healthLive ? '' : '（健康环口径挂账 G2）'}`,
+        today: null, doneToday: null, rejected: null,
+      }));
+      DEPTS.forEach(d => {
+        const rawScore = hOf[d.key]?.score;
+        const score = Number(rawScore);
+        if (hOf[d.key] && rawScore != null && Number.isFinite(score)) { d.ring = score; d.led = score >= 90 ? 'g' : score >= 65 ? 'y' : 'r'; }
+        const hit = (x) => String(x?.dept || '') === d.key || String(x?.dept || '') === d.n || String(x?.station_key || '').startsWith(`dept-${d.key}-`);
+        const deptTasks = tasks?.items ? tasks.items.filter(hit) : [];
+        const today = todayString();
+        if (tasks?.items) {
+          d.today = deptTasks.filter(t => dayKey(t.created_at) === today).length;
+          d.doneToday = deptTasks.filter(t => t.status === 'done' && dayKey(t.finished_at || t.created_at) === today).length;
+        }
+        if (revsNo?.items) d.rejected = revsNo.items.filter(hit).length;
+      });
+    } else DEPTS = [];
+    const deptSelect = $('#org-delegate-dept');
+    deptSelect.innerHTML = DEPTS.length
+      ? '<option value="">请选择部门舱</option>' + DEPTS.map(d => `<option value="${escH(d.key)}">${escH(d.n)}</option>`).join('')
+      : '<option value="">暂无真实部门舱</option>';
+    syncOrgDispatchAccess();
+
+    if (revs?.items) {
+      REVQ = revs.items.map(i => [`${i.title}（${i.dept || '通用'}）`, (i.created_at || '').slice(11, 16), i.status === 'pending' ? 'hold' : i.status === 'approved' ? 'pass' : 'back', i.status === 'pending' ? '复核中' : i.status === 'approved' ? '通过' : (i.review_note ? '打回·' + i.review_note.slice(0, 12) : '打回')]);
+    }
+    if (tasks?.items) {
+      STEPS = tasks.items.slice(0, 7).map((t, i) => [i % 3 === 0 ? 'ok' : i % 3 === 2 ? 'rev' : '', t.dept || '主管', t.task || t.title || '', (t.created_at || '').slice(11, 16), t.status === 'done' ? 'ok' : t.status === 'review' ? 'rev' : '']);
+    }
+    if (tasks?.items && tasks.items.length >= 4) {
+      TICKS = tasks.items.slice(0, 6).map(t => [t.status === 'done' ? 'ok' : 'iv', t.dept || '主管', (t.task || t.title || '').slice(0, 40)]);
+    }
+    renderTicker();
+    if (orders?.items) {
+      PROD = orders.items.slice(0, 4).map(o => [o.title || o.task || '', (o.created_at || '').slice(11, 16), o.status === 'done' ? '已复核' : '跟进中']);
+    }
+    const sourceStates = [load, revs, revsOk, revsNo, tasks, orders, samples, cabinMap, health, collab];
+    const reachedSources = sourceStates.filter(v => v && (v.ok === undefined || v.ok === true)).length;
+    LIVE.mode = reachedSources === sourceStates.length ? 'live' : reachedSources > 0 ? 'partial' : 'demo';
+    syncOrgDispatchAccess();
+    // 三视图路由（W1-04a 面：admin→全企屏｜manager/dept→舱屏｜staff→舱屏[首期]）
+    setBadge();
+    void workspaceResult.then(() => {
+      if (bootSeq !== ORG_BOOT_SEQ || bootToken !== TOKEN) return;
+      redrawWorkspaceStrip();
+    });
+    if (me.orgRole === 'admin') renderDash();
+    else if (targetCabin) goCabin(targetCabin.code);
+  } catch (e) {
+    if (bootSeq !== ORG_BOOT_SEQ || bootToken !== TOKEN) return;
+    LIVE.mode = 'demo'; LIVE.err = String(e?.message || e).slice(0, 80);
+    ME_ORG_ROLE = ''; syncOrgDispatchAccess();
+    if (WORKSPACE_DIRECTORY === undefined) failWorkspaceDirectory(e);
+    DEPTS = []; SEATS = []; PROD = []; STEPS = []; TICKS = []; REVQ = [];
+    COLLAB = { live: false, links: [], orders: [] };
+    KPIS = [
+      ['今日派活','—','','未接通','var(--cyan)'],['在岗工位','—','','未接通','var(--cyan)'],
+      ['复核通过率','—','','未接通','var(--mint)'],['算子调用','—','次','口径挂账 G4','var(--violet)'],
+      ['实时告警','—','条','未接通','var(--amber)'],['今日能耗','—','万度','口径挂账 G5','var(--mint)'],
+    ];
+    setBadge();
+    renderDash(); // 降级=空态面（wb#135：演示数据摘除——角标诚实「数据未接通」，不展示假数据）
+  }
+}
+void boot();
+</script>
+<script>
+/* 认证门左导航联动：登录 / 企业注册 / 口令兑换 三项一级导航（2026-10-28 彭总令） */
+(() => {
+  let retries = 0;
+  function wire() {
+    const navs = document.querySelectorAll('.ag-nav-item');
+    if (!navs.length || typeof agShow !== 'function') {
+      if (++retries < 50) return setTimeout(wire, 40);
+      return console.warn('[org] 左导航绑定失败：认证组件未就绪');
+    }
+    const daily = (show) => {
+      const panel = document.getElementById('ag-daily');
+      if (panel) panel.style.display = show ? '' : 'none';
+    };
+    const setNav = (key) => {
+      navs.forEach((nav) => nav.classList.toggle('on', nav.getAttribute('data-k') === key));
+    };
+    navs.forEach((nav) => nav.addEventListener('click', () => {
+      const key = nav.getAttribute('data-k');
+      if (key === 'login') { agShow(true); daily(false); }
+      else if (key === 'reg') { agShow(false); daily(false); }
+      else if (key === 'code') { agShow(false); daily(true); void agDailyLoad(); }
+      setNav(key);
+    }));
+    const toRegister = document.getElementById('ag-to-reg');
+    if (toRegister) toRegister.addEventListener('click', () => { setNav('reg'); daily(false); });
+    const toLogin = document.getElementById('ag-to-login');
+    if (toLogin) toLogin.addEventListener('click', () => { setNav('login'); daily(false); });
+    const dailyToggle = document.getElementById('ag-daily-toggle');
+    if (dailyToggle) dailyToggle.addEventListener('click', () => setNav(document.getElementById('ag-daily').style.display === 'none' ? 'reg' : 'code'));
+    window.agSetNav = setNav;
+    setNav('login');
+  }
+  wire();
+})();
+</script>
+</body>
+</html>

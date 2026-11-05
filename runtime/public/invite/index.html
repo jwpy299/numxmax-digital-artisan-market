@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>灵枢·星云 —— 组织邀请</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh; background: #0a0f1a; color: #e8eef7;
+    font-family: "Noto Sans SC", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 48px 24px 64px;
+  }
+  .logo { font-size: 22px; font-weight: 800; letter-spacing: 2px; color: #f0b45a; }
+  .sub { margin-top: 6px; font-size: 12px; color: #8b98ad; letter-spacing: 4px; }
+  .card {
+    margin-top: 36px; width: 100%; max-width: 420px;
+    background: #101828; border: 1px solid #1f2b40; border-radius: 16px;
+    padding: 28px 24px;
+  }
+  h1 { font-size: 20px; font-weight: 700; }
+  .org { margin-top: 10px; font-size: 14px; color: #9fb2cc; line-height: 1.8; }
+  .org b { color: #6ee7c8; }
+  .code-row {
+    margin-top: 18px; display: flex; align-items: center; gap: 10px;
+    background: #0a0f1a; border: 1px dashed #2b3a55; border-radius: 10px; padding: 12px 14px;
+  }
+  .code { font-family: "JetBrains Mono", monospace; font-size: 15px; color: #f0b45a; flex: 1; word-break: break-all; }
+  .copy { font-size: 12px; color: #6ee7c8; border: 1px solid #6ee7c8; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .btn {
+    display: block; margin-top: 20px; width: 100%; text-align: center; text-decoration: none;
+    background: #f0b45a; color: #0a0f1a; font-weight: 800; font-size: 16px;
+    border-radius: 12px; padding: 15px 0;
+  }
+  .btn2 {
+    display: block; margin-top: 12px; width: 100%; text-align: center; text-decoration: none;
+    border: 1px solid #2b3a55; color: #9fb2cc; font-size: 14px; border-radius: 12px; padding: 13px 0;
+  }
+  .hint { margin-top: 16px; font-size: 12px; color: #67748c; line-height: 1.8; }
+  .steps { margin-top: 8px; font-size: 13px; color: #9fb2cc; line-height: 2.0; }
+</style>
+</head>
+<body>
+  <div class="logo">灵枢 · 星云</div>
+  <div class="sub">LINGSHU NEBULA</div>
+
+  <div class="card">
+    <h1>你被邀请加入组织</h1>
+    <div class="org" id="orgLine">这是一枚<b>组织邀请码</b>，已绑定归属舱位，注册后自动落位。</div>
+
+    <div class="code-row">
+      <span class="code" id="codeText">读取中…</span>
+      <span class="copy" id="copyBtn">复制</span>
+    </div>
+
+    <!-- 手机：引 APP 下载；桌面：引工作台。JS 按设备自动换文案与去向 -->
+    <a class="btn" id="mainBtn" href="#">…</a>
+    <a class="btn2" id="altBtn" href="#">…</a>
+
+    <div class="steps" id="steps"></div>
+    <div class="code-row" style="justify-content:center">
+      <img id="qrImg" alt="邀请二维码" style="width:180px;height:180px;border-radius:10px" />
+    </div>
+    <div class="hint" style="text-align:center">面对面就扫这个码——已装 APP 的直接「扫一扫」入舱</div>
+    <div class="hint" style="margin-top:10px;color:#e8a0a0">注意：若本机的灵枢 APP / 工作台已登录其他账号，请先在 APP「我的→退出登录」后再用本码注册——否则邀测码会把当前已登录的账号拉进本组织，而不是给您开新账号。</div>
+    <div class="hint">邀请码三形态同源：本链接 / 二维码 / 手输邀请码，用哪个都行。</div>
+  </div>
+
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var code = params.get("code") || "";
+  var codeEl = document.getElementById("codeText");
+  codeEl.textContent = code || "（链接缺邀请码）";
+  if (code) document.getElementById("qrImg").src = "/api/invite-qr?code=" + encodeURIComponent(code);
+
+  document.getElementById("copyBtn").onclick = function () {
+    if (!code) return;
+    var done = function () { document.getElementById("copyBtn").textContent = "已复制"; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(done, done);
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = code; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta); done();
+    }
+  };
+
+  var ua = navigator.userAgent || "";
+  var isAndroid = /Android/i.test(ua);
+  var isIOS = /iPhone|iPad|iPod/i.test(ua);
+  var isMobile = isAndroid || isIOS;
+  var wbUrl = "https://wb.example.invalid/wb/invite?code=" + encodeURIComponent(code);
+  var apkUrl = "https://downloads.example.invalid/lingshu-spirit-v2.9.56.apk";
+
+  var mainBtn = document.getElementById("mainBtn");
+  var altBtn = document.getElementById("altBtn");
+  var steps = document.getElementById("steps");
+
+  if (isAndroid) {
+    mainBtn.textContent = "① 下载灵枢 APP（安卓）";
+    mainBtn.href = apkUrl;
+    altBtn.textContent = "② 已装好？复制邀请码去注册（自动入舱）";
+    altBtn.href = wbUrl;
+    steps.innerHTML =
+      "手机通道：<br>1. 点上方按钮下载安装灵枢 APP<br>" +
+      "2. 打开 APP 注册（邀请码已在剪贴板，粘贴即可）<br>" +
+      "3. 注册完成自动落入你的舱位<br>" +
+      "已有 APP？直接在 APP「扫一扫」扫邀请二维码也行";
+  } else if (isIOS) {
+    mainBtn.textContent = "① 先用网页工作台加入";
+    mainBtn.href = wbUrl;
+    altBtn.textContent = "② iOS APP 上架通知我";
+    altBtn.href = wbUrl;
+    steps.innerHTML =
+      "iPhone 通道：APP 上架前先走网页工作台注册，邀请码已随链接带好，注册即落位。";
+  } else {
+    mainBtn.textContent = "① 进入智能工作台注册（邀请码已带）";
+    mainBtn.href = wbUrl;
+    altBtn.textContent = "② 下载 Windows 个人工作台";
+    altBtn.href = "https://downloads.example.invalid/";
+    steps.innerHTML =
+      "电脑通道：<br>1. 点上方按钮进工作台注册，自动落位<br>" +
+      "2. 注册后可在首页下载 Windows 桌面工作台<br>" +
+      "3. 手机上用？用浏览器打开本链接即切换手机通道";
+  }
+})();
+</script>
+</body>
+</html>

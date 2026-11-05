@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+<title>NumX Max · 门户管理台</title>
+<style>
+  :root{
+    --bg:#050810; --panel:#0c1220; --panel2:#111a2b; --line:#1a2540;
+    --cyan:#22d3ee; --mint:#34d399; --amber:#fbbf24; --red:#f87171; --violet:#8a7ac8; --gold:#c8842c;
+    --t1:#f5f7fa; --t2:#c8d2e2; --t3:#8a94a8; --mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:Inter,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:13px;
+    background-image:radial-gradient(1200px 500px at 80% -10%,rgba(34,211,238,.05),transparent)}
+  .mono{font-family:var(--mono)}
+  a{color:var(--cyan);text-decoration:none}
+  button{font-family:var(--mono);cursor:pointer}
+  .top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:18px;height:52px;padding:0 18px;
+    background:rgba(5,8,16,.88);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-weight:700;font-size:14px;letter-spacing:.04em}
+  .led{width:8px;height:8px;border-radius:50%;background:var(--mint);box-shadow:0 0 9px var(--mint)}
+  .led.cy{background:var(--cyan);box-shadow:0 0 9px var(--cyan)}
+  @keyframes pulse{50%{opacity:.35}}
+  .led{animation:pulse 1.6s ease-in-out infinite}
+  .top .ver{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--t3);text-transform:uppercase}
+  .top .sp{flex:1}
+  .badge{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+    border:1px solid var(--line);border-radius:5px;padding:4px 9px;color:var(--mint);background:rgba(52,211,153,.07)}
+  .badge.dim{color:var(--t3)}
+  .shell{display:grid;grid-template-columns:216px 1fr 336px;min-height:calc(100vh - 52px)}
+  .nav{border-right:1px solid var(--line);padding:16px 12px;background:rgba(12,18,32,.55)}
+  .nav .grp{font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:var(--t3);margin:16px 6px 7px;text-transform:uppercase}
+  .nav .grp:first-child{margin-top:0}
+  .ni{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;color:var(--t2);font-size:12px;cursor:pointer;border:1px solid transparent}
+  .ni:hover{background:var(--panel2)}
+  .ni.on{background:rgba(34,211,238,.09);border-color:rgba(34,211,238,.35);color:var(--cyan)}
+  .ni .nled{width:5px;height:5px;border-radius:50%;background:var(--t3)}
+  .ni.on .nled{background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+  .ni .cnt{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--amber)}
+  .main{padding:20px 22px;min-width:0}
+  .view{display:none}.view.on{display:block}
+  .crumb{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--t3);text-transform:uppercase;margin-bottom:6px}
+  h1{font-size:21px;font-weight:800;letter-spacing:.01em;margin-bottom:5px}
+  .sub{color:var(--t3);font-size:12px;margin-bottom:18px}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:16px;margin-bottom:14px}
+  .card h3{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--t3);text-transform:uppercase;margin-bottom:12px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:13px 14px}
+  .kpi .k{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--t3);text-transform:uppercase}
+  .kpi .v{font-family:var(--mono);font-size:26px;font-weight:700;margin-top:6px}
+  .kpi .d{font-size:11px;color:var(--t3);margin-top:3px}
+  .v.cy{color:var(--cyan)}.v.mt{color:var(--mint)}.v.am{color:var(--amber)}.v.rd{color:var(--red)}
+  .code-hero{display:flex;align-items:center;gap:16px;background:var(--panel2);border:1px dashed rgba(34,211,238,.4);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+  .code-hero .txt{font-family:var(--mono);font-size:30px;font-weight:800;letter-spacing:14px;color:var(--t1)}
+  .code-hero .meta{font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:.12em}
+  .btn{border:1px solid var(--cyan);background:rgba(34,211,238,.1);color:var(--cyan);border-radius:7px;padding:7px 13px;font-size:11px;font-weight:600}
+  .btn:hover{background:rgba(34,211,238,.2)}
+  .btn.ghost{background:transparent;border-color:var(--line);color:var(--t2)}
+  .btn.ghost:hover{border-color:var(--cyan);color:var(--cyan)}
+  .btn.warn{border-color:var(--amber);color:var(--amber);background:rgba(251,191,36,.07)}
+  .btn.mint{border-color:var(--mint);color:var(--mint);background:rgba(52,211,153,.07)}
+  .btn.sm{padding:4px 9px;font-size:10px}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.c{border-style:double;border-width:3px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--t3);text-transform:uppercase;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  td{padding:9px 10px;border-bottom:1px solid rgba(26,37,64,.6);color:var(--t2);vertical-align:top}
+  tr:hover td{background:rgba(34,211,238,.03)}
+  td.mono{font-family:var(--mono);font-size:11px}
+  .st{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:10px;letter-spacing:.06em}
+  .st::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}
+  .st.ok{color:var(--mint);background:rgba(52,211,153,.09)}
+  .st.pend{color:var(--amber);background:rgba(251,191,36,.1)}
+  .st.err{color:var(--red);background:rgba(248,113,113,.09)}
+  .st.dim{color:var(--t3);background:rgba(138,148,168,.1)}
+  .fld{margin-bottom:12px}
+  .fld label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--t3);margin-bottom:6px;text-transform:uppercase}
+  .inp,.sel{width:100%;background:#0a101e;border:1px solid var(--line);border-radius:7px;padding:9px 11px;color:var(--t1);font-size:13px;outline:none;font-family:var(--sans)}
+  .inp:focus,.sel:focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(34,211,238,.15)}
+  .sel{appearance:none}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .alert{display:flex;gap:10px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:7px;padding:11px 12px;margin-bottom:10px}
+  .alert.err{border-left-color:var(--red)}
+  .alert.ok{border-left-color:var(--mint)}
+  .alert .t{font-size:12px;font-weight:600;color:var(--t1)}
+  .alert .b{font-size:11px;color:var(--t3);margin-top:3px;line-height:1.5}
+  .alert .act{margin-left:auto;flex-shrink:0}
+  .side{border-left:1px solid var(--line);padding:18px 16px;background:rgba(12,18,32,.55)}
+  .side h4{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--t3);text-transform:uppercase;margin:0 0 12px}
+  .note{font-size:11px;color:var(--t3);line-height:1.7}
+  .note b{color:var(--t2)}
+  .empty{border:1px dashed var(--line);border-radius:8px;padding:16px;text-align:center;color:var(--t3);font-size:12px}
+  .err{color:var(--red);font-size:12px;line-height:1.5}
+  .drop{border:1.5px dashed rgba(34,211,238,.45);border-radius:10px;padding:22px;text-align:center;color:var(--cyan);background:rgba(34,211,238,.03);font-size:12px}
+  .cnote{display:flex;gap:7px;align-items:flex-start;font-size:11px;color:var(--amber);background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.25);border-radius:7px;padding:9px 11px;margin-top:12px;line-height:1.6}
+  .progress{height:5px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:7px}
+  .progress i{display:block;height:100%;background:var(--cyan);border-radius:3px}
+  .timeline{position:relative;padding-left:16px;border-left:1px solid var(--line);margin-left:4px}
+  .tl-item{position:relative;padding:0 0 16px 12px}
+  .tl-item::before{content:'';position:absolute;left:-20px;top:5px;width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 7px var(--cyan)}
+  .tl-item .tt{font-family:var(--mono);font-size:11px;color:var(--t2)}
+  .tl-item .bb{font-size:11px;color:var(--t3);margin-top:2px}
+  /* 登录闸 */
+  .gate{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(5,8,16,.96)}
+  .gate .box{width:400px;max-width:92vw;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px}
+  .gate h2{font-size:20px;margin-bottom:6px}
+  .gate .hint{color:var(--t3);font-size:12px;margin-bottom:16px}
+  .gate .err{display:none;color:var(--red);font-size:12px;margin-top:8px}
+  .gate .alt{margin-top:14px;text-align:center;font-size:12px;color:var(--t3)}
+  .gate .alt a{cursor:pointer}
+  @media(max-width:1200px){.shell{grid-template-columns:196px 1fr}.side{display:none}}
+  @media(max-width:760px){.shell{grid-template-columns:1fr}.nav{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;border-right:0;border-bottom:1px solid var(--line)}.nav .grp{width:100%;margin:8px 4px 2px}.nav .ni{padding:7px 9px}.kpis{grid-template-columns:repeat(2,1fr)}.grid2,.grid3{grid-template-columns:1fr}.main{padding:16px 12px}}
+</style>
+</head>
+<body>
+<div class="gate" id="gate" style="display:none">
+  <div class="box">
+    <div class="mono" style="font-size:10px;letter-spacing:.2em;color:var(--t3)">NUMX MAX · 门户管理台</div>
+    <h2>管理员登录</h2>
+    <div class="hint">管理端按部门舱分账号——登录后落到你的管理舱。APP 扫码入舱链同企员工入舱面。</div>
+    <div class="fld"><label>账号 / 手机号</label><input id="g-id" class="inp" placeholder="管理员账号"></div>
+    <div class="fld"><label>密码</label><input id="g-pw" class="inp" type="password" placeholder="密码"></div>
+    <div class="fld" id="g-totp-wrap" style="display:none"><label>动态验证码（2FA）</label><input id="g-totp" class="inp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位动态码"></div>
+    <div class="err" id="g-err"></div>
+    <button class="btn" style="width:100%;padding:11px" onclick="doLogin()">登录管理台</button>
+    <div class="alt">没有管理账号？让负责人签发邀请，APP 扫码入舱后账号密码登录。</div>
+    <div class="alt" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+      <button class="btn ghost" style="width:100%" onclick="openQr()">用 APP 扫码登录管理台</button>
+      <div id="qr-box" style="display:none;margin-top:12px;text-align:center">
+        <img id="qr-img" alt="管理台扫码登录二维码" style="width:220px;height:220px;border-radius:10px;border:1px solid var(--line);background:#fff">
+        <div id="qr-meta" class="mono" style="font-size:11px;color:var(--cyan);margin-top:8px"></div>
+        <div style="font-size:11px;color:var(--t3);margin-top:8px">APP「我的 → 扫一扫」扫此码后，须核对同名管理台与会话尾号并主动确认。不是你本人刚在本页发起的，立即取消。</div>
+        <div id="qr-err" class="err" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="gate" id="dual-gate" style="display:none">
+  <div class="box">
+    <h2>C 级双签复核</h2>
+    <div class="hint">输入另一具备对应舱写权限的管理席 token；操作人与复核人不得相同。</div>
+    <input id="dual-token" class="inp" type="password" autocomplete="off" placeholder="复核人管理 token">
+    <div class="row" style="margin-top:14px">
+      <button class="btn ghost" onclick="resolveDualToken(false)">取消</button>
+      <button class="btn warn" onclick="resolveDualToken(true)">确认复核</button>
+    </div>
+  </div>
+</div>
+
+<header class="top">
+  <div class="brand"><span class="led cy"></span>NumX Max <span style="color:var(--t3);font-weight:400">· 门户管理台</span></div>
+  <span class="ver" id="role-ver">ADMIN CONSOLE</span>
+  <div class="sp"></div>
+  <span class="badge" id="runtime-badge"><span class="led"></span>RUNTIME CHECK</span>
+  <span class="badge dim mono" id="me-badge" style="font-size:10px">…</span>
+</header>
+
+<div class="shell">
+  <nav class="nav">
+    <div class="grp">客户与内测</div>
+    <div class="ni on" data-view="codes"><span class="nled"></span>邀测口令运营</div>
+    <div class="grp">商品与内容</div>
+    <div class="ni" data-view="training"><span class="nled"></span>数字员工训练实时屏</div>
+    <div class="ni" data-view="release"><span class="nled"></span>下载通道管理</div>
+    <div class="grp">系统</div>
+    <div class="ni" data-view="runtime"><span class="nled"></span>组织运行时管理台</div>
+  </nav>
+
+  <main class="main">
+    <div id="boot-error" class="err" style="display:none;margin:0 0 12px"></div>
+    <section class="view on" id="v-codes">
+      <div class="crumb">客户与内测 / 邀测口令运营</div>
+      <h1>邀测口令运营</h1>
+      <div class="sub">每日品牌口令 → 兑换专属邀测码 → 注册开户。运营看数、调配额、定向签发，三件事一页办。</div>
+      <div class="kpis">
+        <div class="kpi"><div class="k">今日名额余量</div><div class="v cy" id="k-left">…</div><div class="d">每日 0 点重置（可调配额 10–20）</div></div>
+        <div class="kpi"><div class="k">今日已兑换</div><div class="v mt" id="k-redeemed">…</div><div class="d">口令→专属码成功数</div></div>
+        <div class="kpi"><div class="k">今日开户成功</div><div class="v mt" id="k-opened">…</div><div class="d">专属码已消费（注册真组建）</div></div>
+        <div class="kpi"><div class="k">定向待发码</div><div class="v am" id="k-pending">…</div><div class="d">运营手动签发未消费</div></div>
+      </div>
+      <div class="code-hero">
+        <div style="flex:1">
+          <div class="meta">今日邀测口令（门户首页/下载中心同步展示）</div>
+          <div class="txt" id="code-text">…</div>
+          <div class="meta" style="margin-top:6px">NumX Max 品牌口令池 · 24 句 · 每日 0 点自动换新</div>
+        </div>
+        <button class="btn ghost" onclick="copyCode()">复制口令</button>
+        <button class="btn warn c" onclick="showQuota()">调配额（C 级双签）</button>
+      </div>
+      <div class="card">
+        <h3>定向签发专属邀测码（老客/大客户面——不占口令名额）</h3>
+        <div class="grid3">
+          <div class="fld"><label>手机号（码绑此号·防转借）</label><input id="i-phone" class="inp" placeholder="13800000000"></div>
+          <div class="fld"><label>企业名称（留痕）</label><input id="i-ent" class="inp" placeholder="如：XX 精工有限公司"></div>
+          <div class="fld"><label>有效期</label><select id="i-ttl" class="sel"><option value="72">72 小时（默认）</option><option value="168">7 天</option><option value="720">30 天</option></select></div>
+        </div>
+        <div class="row">
+          <button class="btn mint" data-action="invite" onclick="doIssue()">签发专属码（iv_ 48hex · 仅此一次显示）</button>
+          <span class="note">签发即入 st_beta_invites（sha256 落库+kind=enterprise）。<b>明文只显示一次，库/日志不留。</b></span>
+        </div>
+        <div id="issue-out" style="display:none;margin-top:12px" class="empty"></div>
+      </div>
+      <div class="card">
+        <h3>兑换流水（今日）</h3>
+        <table>
+          <thead><tr><th>时间</th><th>手机号</th><th>码对账位</th><th>状态</th><th>有效期至</th><th>操作</th></tr></thead>
+          <tbody id="flow-body"><tr><td colspan="6"><div class="empty">拉取中…</div></td></tr></tbody>
+        </table>
+      </div>
+      <div class="card" id="quota-card" style="display:none">
+        <h3>调配额（C 级双签面——改的是「今日可开户数」）</h3>
+        <div class="grid2">
+          <div class="fld"><label>今日名额（10–20 家）</label><input id="q-num" class="inp" type="number" value="15" min="10" max="20"></div>
+          <div class="fld"><label>双签复核人（须另一 admin 的 token——操作人与复核人不同）</label><input id="q-rtok" class="inp" type="password" autocomplete="off" placeholder="复核人管理 token（双签制）"></div>
+        </div>
+        <button class="btn warn" data-action="invite" onclick="doQuota()">提交双签调配</button>
+        <div class="cnote">⚠ 配额直接改的是内测放号节奏——进 C 级双签：操作员提交 → 复核人确认才生效，留审计痕（谁提/谁批/何时/从几到几）。</div>
+      </div>
+    </section>
+
+    <section class="view" id="v-release">
+      <div class="crumb">商品与内容 / 下载通道管理</div>
+      <h1>下载通道管理</h1>
+      <div class="sub">门户「下载注册中心」双卡（组织运行时桌面端 + APP）的版本通道。换版不再手改 json、手丢文件。</div>
+      <div class="card">
+        <h3>当前通道状态</h3>
+        <table>
+          <thead><tr><th>通道</th><th>当前版本</th><th>包体</th><th>更新时间</th><th>OTA</th><th>操作</th></tr></thead>
+          <tbody id="cur-body"><tr><td colspan="6"><div class="empty">拉取中…</div></td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>发布新版本（C 级双签面）</h3>
+        <div class="drop">APK 先经既有发布链上传至门户包体目录<br><span class="note" style="color:var(--t3)">本页不上传文件，只校验已落盘包体、版本递进及版本与下载链一致</span></div>
+        <div class="grid3" style="margin-top:14px">
+          <div class="fld"><label>版本号</label><input id="p-ver" class="inp" placeholder="x.y.z 递进"></div>
+          <div class="fld"><label>双签复核人 token</label><input id="p-rtok" class="inp" type="password" autocomplete="off" placeholder="另一 admin 的 token"></div>
+        </div>
+        <div class="fld"><label>更新说明（notes）</label><input id="p-notes" class="inp" placeholder="本版变化一句话（下载页可见）"></div>
+        <div class="fld"><label>APK 下载链（本域名：numx-max-vX.apk 或全 https 本域链）</label><input id="p-url" class="inp" placeholder="numx-max-v2.9.64.apk"></div>
+        <div class="row">
+          <button class="btn c" data-action="release" onclick="doPublish()">提交发布（包体在库+版本链一致 → 双签复核）</button>
+          <button class="btn ghost" onclick="alert('OTA 推更走 EAS 侧：同 runtimeVersion 的 commit 上 eas update --branch apk。本页发布只管通道 json。')">OTA 推更说明</button>
+        </div>
+        <div class="cnote">本页真实校验：版本递进、APK 已落盘、URL 与版本一致并统一写绝对链；发布/回滚均须另一具备发布权限的管理席双签并留审计。</div>
+      </div>
+      <div class="card">
+        <h3>发布历史（可回滚）</h3>
+        <div class="timeline" id="hist-list"><div class="empty">拉取中…</div></div>
+        <div class="fld" style="margin-top:12px"><label>回滚到版本（C 级双签）</label>
+          <div class="row">
+            <input id="r-ver" class="inp" style="max-width:180px" placeholder="如 2.9.62">
+            <input id="r-rtok" class="inp" type="password" autocomplete="off" placeholder="复核人 token">
+            <button class="btn warn" data-action="release" onclick="doRollback()">双签回滚</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="v-runtime">
+      <div class="crumb">系统 / 组织运行时管理台</div>
+      <h1>组织运行时管理台</h1>
+      <div class="sub">工位池 · 队列 · 复核训练 · 算力成本 · 告警审计。默认只显示异常与要动手的，正常状态一行汇总。</div>
+      <div class="kpis">
+        <div class="kpi"><div class="k">工位在线</div><div class="v mt" id="r-workers">…</div><div class="d">组织池真件</div></div>
+        <div class="kpi"><div class="k">执行中任务</div><div class="v cy" id="r-exec">…</div><div class="d" id="r-queue">队列 …</div></div>
+        <div class="kpi"><div class="k">今日失败</div><div class="v rd" id="r-failed">…</div><div class="d">可重派（同任务内容新单面）</div></div>
+        <div class="kpi"><div class="k">今日算力成本</div><div class="v am">未接</div><div class="d">scnet 用量 API 未接——不估算</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>异常队列（只列要动手的）</h3>
+          <div id="fail-list"><div class="empty">拉取中…</div></div>
+        </div>
+        <div class="card">
+          <h3>复核与训练</h3>
+          <table><tbody id="rev-body"><tr><td colspan="3"><div class="empty">拉取中…</div></td></tr></tbody></table>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>算力与成本（未接不估算）</h3>
+          <table>
+            <thead><tr><th>模型面</th><th>今日调用</th><th>估算成本</th><th>占比</th></tr></thead>
+            <tbody id="cost-body"><tr><td colspan="4"><div class="empty">scnet 用量 API 未接——调用量、金额与占比均不估算。</div></td></tr></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>告警与审计</h3>
+          <div id="health-list"><div class="empty">拉取中…</div></div>
+        </div>
+      </div>
+    </section>
+    <section class="view" id="v-training">
+      <div class="crumb">商品与内容 / 数字员工训练实时屏</div>
+      <h1>数字员工训练实时屏</h1>
+      <div class="sub">按部门订阅包构建超算训练任务（1+1+N：主管 AI+复核岗+N 岗位员工）。沙箱训练场：样本备→超算训练→对拉评测→达阈值+C 级双签才发布到数字员工超市。</div>
+      <div class="card">
+        <h3>按包构建训练任务（先备样本——厚度不够不训）</h3>
+        <div class="row">
+          <select id="t-pkg" class="sel" style="max-width:280px">
+            <option value="dept_finance">财务部包（dept_finance）</option>
+            <option value="dept_legal">法务舱包（dept_legal）</option>
+            <option value="dept_marketing">市场部包（dept_marketing）</option>
+            <option value="dept_synergy">部门协同包（dept_synergy·全厂面）</option>
+          </select>
+          <button class="btn mint" data-action="training" onclick="doBuild()">构建任务（拉样本洗集）</button>
+          <input id="t-rtok" class="inp" type="password" autocomplete="off" style="max-width:240px" placeholder="双签复核人 token（run/publish 用）">
+        </div>
+      </div>
+      <div class="card">
+        <h3>训练任务列表（状态机：ready→training→evaluated→published）</h3>
+        <table>
+          <thead><tr><th>订阅包</th><th>部门</th><th>样本</th><th>状态</th><th>LoRA 版本</th><th>评测分</th><th>操作</th></tr></thead>
+          <tbody id="job-body"><tr><td colspan="7"><div class="empty">拉取中…</div></td></tr></tbody>
+        </table>
+        <div class="cnote">上岗阈值：对拉判定正确率 ≥ <b id="eval-pass-label">70</b> 分（新岗位要求）；且发布须 C 级双签（操作+复核两 admin 不同人）。未达阈值继续攒样再训，不上架。</div>
+      </div>
+      <div class="card">
+        <h3>训练场纪律（沙箱训练场）</h3>
+        <div class="note">
+          训练在 scnet 超算实例（海光 DCU 卡）执行，不直接上岗；评测=基座 vs LoRA 对拉判定（构造新案例防背题）。
+          上架=agents.status=pending 待审核（超市审核流不动，不直接 listed）。样本来自复核批注回流（正/反双面），与企业私域同域。
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="side">
+    <h4>今日要办</h4>
+    <div id="side-todo"><div class="empty">拉取中…</div></div>
+    <h4 style="margin-top:18px">纪律面</h4>
+    <div class="note">
+      <b>三层不混</b>：老板驾驶舱（业务拍板）/门户管理台（运营动作）/组织运行时管理台（运行时异常）。<br><br>
+      <b>异常优先</b>：默认只显示异常与要动手的，正常一行汇总。<br>
+      <b>C 级双签</b>：配额调整、换版发布进双签（提交→复核→生效+审计痕）。查看/普通签发不进。<br>
+      <b>厂域与凭证</b>：厂域数据服务端注入工厂号；邀测码明文只显示一次，库 sha256 不落明文、日志不落明文。<br>
+      <b>不造假面</b>：数字为真件拉取；未达=诚实空态，成本未接=未接，不估算。
+    </div>
+    <h4 style="margin-top:18px">端子契约</h4>
+    <div class="note mono" style="font-size:10px;line-height:1.8">
+      邀测口令：adminDaily.{me,stats,quotaSet,issue,list,revoke,runtime}<br>
+      下载通道：adminRelease.{current,history,publish,rollback}<br>
+      运行时：adminDaily.runtime（admin 栈直连 harness 池聚合）<br>
+      训练：adminTraining.{jobs,build,run,evalReport,publish}（evalReport=runner 专用密钥）<br>
+      全部 admin 闸 + 舱角色写权限 + 厂域钉 + C 级双签面。
+    </div>
+  </aside>
+</div>
+
+<script>
+// ═══ 管理台真件：登录闸 + API 基址适配（file://=admin 域绝对基址；http=同源）+ 舱角色路由 ═══
+const API_BASE = location.protocol === 'file:' ? (window.numxShell?.apiBase || '') : '';
+let TOKEN = sessionStorage.getItem('ops_token') || '';
+let ME = null;
+let CURRENT_QUOTA = 15;
+function escH(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function clearLoginCredentials() {
+  for (const id of ['g-pw', 'g-totp']) document.getElementById(id).value = '';
+  const err = document.getElementById('g-err'); err.textContent = ''; err.style.display = 'none';
+}
+function authExpired() {
+  clearLoginCredentials();
+  sessionStorage.removeItem('ops_token'); TOKEN = ''; ME = null;
+  if (VIEW_TIMER) clearInterval(VIEW_TIMER);
+  VIEW_TIMER = null;
+  clearQrSession();
+  showGate();
+}
+async function api(path, input = {}, options = {}) {
+  if (location.protocol === 'file:' && !API_BASE) throw new Error('桌面管理台基址未注入——请用 NumX Max 管理台安装壳打开');
+  const r = await fetch(`${API_BASE}/api/trpc/${path}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ json: { ...(options.includeToken === false ? {} : { token: TOKEN }), ...input } }),
+  });
+  const text = await r.text();
+  const dualAttempt = Object.prototype.hasOwnProperty.call(input, 'reviewToken');
+  let j = null;
+  try { j = JSON.parse(text); } catch {
+    if (r.status === 401 && options.auth !== false && !dualAttempt) authExpired();
+    const err = new Error(`HTTP ${r.status} 返回非 JSON——请核管理端反代与服务状态`);
+    err.code = `HTTP_${r.status}`;
+    err.httpStatus = r.status;
+    throw err;
+  }
+  if (!r.ok || j?.error) {
+    const err = new Error(j?.error?.json?.message || `HTTP ${r.status}`);
+    err.code = String(j?.error?.json?.data?.code ?? j?.error?.json?.code ?? `HTTP_${r.status}`);
+    err.httpStatus = Number(j?.error?.json?.data?.httpStatus ?? r.status);
+    if ((r.status === 401 || err.code === 'UNAUTHORIZED') && options.auth !== false && !dualAttempt) authExpired();
+    throw err;
+  }
+  return j?.result?.data?.json ?? j?.result?.data ?? j;
+}
+function canWrite(action) {
+  if (!ME) return false;
+  if (ME.cabinRole === 'admin') return true;
+  if (action === 'invite') return ME.cabinRole === 'ops';
+  if (action === 'release' || action === 'training') return ME.cabinRole === 'tech';
+  return false;
+}
+function guardAction(action) {
+  if (canWrite(action)) return true;
+  alert('当前舱角色为只读面——此动作需对应舱写权限');
+  return false;
+}
+function applyRoleGates() {
+  document.querySelectorAll('button[data-action]').forEach(b => {
+    b.disabled = !canWrite(b.dataset.action);
+  });
+}
+function errorText(e) { return String(e?.message || e || '未达').slice(0, 180); }
+function openReviewSpace() {
+  if (location.protocol === 'file:') return alert('请从 NumX Max 组织运行时桌面端进入复核空间');
+  location.assign(new URL('/org/', location.href).href);
+}
+function showGate() { document.getElementById('gate').style.display = 'flex'; }
+function hideGate() { document.getElementById('gate').style.display = 'none'; }
+async function doLogin() {
+  const id = document.getElementById('g-id').value.trim();
+  const pw = document.getElementById('g-pw').value;
+  const totp = document.getElementById('g-totp').value.replace(/\D/g, '').slice(0, 6);
+  const err = document.getElementById('g-err');
+  try {
+    const s = await api('adminAuth.login', { identifier: id, password: pw, ...(totp ? { totpCode: totp } : {}) }, { auth: false, includeToken: false });
+    if (!s?.token) throw new Error('登录面异常——无 token');
+    TOKEN = s.token;
+    clearLoginCredentials();
+    sessionStorage.setItem('ops_token', TOKEN);
+    clearQrSession();
+    hideGate();
+    await boot();
+  } catch (e) {
+    if (e?.httpStatus === 412) {
+      document.getElementById('g-totp-wrap').style.display = 'block';
+      err.textContent = '该账号已启用 2FA——请输入 6 位动态码后重新登录';
+      err.style.display = 'block';
+      document.getElementById('g-totp').focus();
+      return;
+    }
+    err.textContent = String(e?.message || e).slice(0, 120);
+    err.style.display = 'block';
+  }
+}
+async function boot() {
+  if (!TOKEN) { showGate(); return; }
+  document.getElementById('boot-error').style.display = 'none';
+  try {
+    ME = await api('adminDaily.me');
+    const roleLabel = { admin: '企业负责人', ops: '运营舱', tech: '技术舱', finance: '财务舱', staff: '员工面' }[ME.cabinRole] ?? '员工面';
+    document.getElementById('me-badge').textContent = `${ME.displayName} · ${roleLabel}`;
+    document.getElementById('role-ver').textContent = `CABIN: ${ME.cabin.toUpperCase()}`;
+    // 舱角色路由：静态与后续动态按钮都按动作重套；服务端 requireCabinAction 才是真闸。
+    applyRoleGates();
+    await Promise.all([loadCodes(), loadRelease(), loadRuntime(), loadTraining()]);
+    startViewRefresh(ACTIVE_VIEW);
+  } catch (e) {
+    const banner = document.getElementById('boot-error');
+    banner.textContent = `管理面未达：${errorText(e)}`;
+    banner.style.display = 'block';
+    if (e?.code === 'UNAUTHORIZED') authExpired();
+  }
+}
+// 视图切换与活动屏轮询（只在 runtime/training 激活时刷新，切走即停）
+let ACTIVE_VIEW = 'codes', VIEW_TIMER = null, VIEW_BUSY = false;
+function startViewRefresh(v) {
+  if (VIEW_TIMER) clearInterval(VIEW_TIMER);
+  VIEW_TIMER = null;
+  if (v !== 'runtime' && v !== 'training') return;
+  VIEW_TIMER = setInterval(async () => {
+    if (VIEW_BUSY) return;
+    VIEW_BUSY = true;
+    try { await (v === 'runtime' ? loadRuntime() : loadTraining()); } finally { VIEW_BUSY = false; }
+  }, 15000);
+}
+window.addEventListener('beforeunload', () => { if (VIEW_TIMER) clearInterval(VIEW_TIMER); });
+document.querySelectorAll('.ni[data-view]').forEach(el => {
+  el.addEventListener('click', () => {
+    const v = el.dataset.view;
+    ACTIVE_VIEW = v;
+    startViewRefresh(v);
+    document.querySelectorAll('.view').forEach(x => x.classList.remove('on'));
+    document.getElementById('v-' + v).classList.add('on');
+    document.querySelectorAll('.ni[data-view]').forEach(x => x.classList.remove('on'));
+    el.classList.add('on');
+  });
+});
+// ═══ 视图① 邀测口令运营 ═══
+const INVITE_STATUS_CLASS = { '已开户': 'ok', '已兑出': 'pend', '已吊销': 'dim', '已过期': 'dim' };
+async function loadCodes() {
+  try {
+    const s = await api('adminDaily.stats');
+    CURRENT_QUOTA = Number(s.quota) || 15;
+    document.getElementById('k-left').textContent = `${s.left} / ${s.quota}`;
+    document.getElementById('k-redeemed').textContent = s.redeemedToday;
+    document.getElementById('k-opened').textContent = s.openedToday;
+    document.getElementById('k-pending').textContent = s.pendingIssue;
+    document.getElementById('code-text').textContent = s.codeText || '今日未放号';
+    const list = await api('adminDaily.list', { limit: 30 });
+    const body = document.getElementById('flow-body');
+    if (!list.items?.length) {
+      body.innerHTML = '<tr><td colspan="6"><div class="empty">今日暂无人兑换——口令刚换。流水字段：时间/手机号掩码/码对账位/状态/有效期/吊销。</div></td></tr>';
+    } else {
+      body.innerHTML = list.items.map(it => `<tr>
+        <td class="mono">${escH(String(it.createdAt).replace('T', ' ').slice(5, 16))}</td>
+        <td class="mono">${escH(it.phone)}</td>
+        <td class="mono">${escH(it.codeHash8)}…</td>
+        <td><span class="st ${INVITE_STATUS_CLASS[it.status] ?? 'dim'}">${escH(it.status)}</span></td>
+        <td class="mono">${escH(String(it.expiresAt).replace('T', ' ').slice(5, 16))}</td>
+        <td>${it.status === '已兑出' ? `<button class="btn sm ghost" data-action="invite" data-do="revoke" data-id="${escH(it.id)}">吊销</button>` : ''}</td>
+      </tr>`).join('');
+    }
+    // 右栏要办
+    document.getElementById('side-todo').innerHTML = `
+      <div class="alert"><div><div class="t">定向待发码 ${s.pendingIssue} 个未消费</div><div class="b">邀测码 72h 有效——建议跟客户一声。</div></div></div>
+      <div id="runtime-todo"><div class="alert"><div><div class="t">运行时状态待读取</div><div class="b">读取组织运行时管理台后再提示，不预设告警。</div></div></div></div>
+      <div class="alert ok"><div><div class="t">通道以「下载通道管理」为准</div><div class="b">换版不再手改 json——本页发布走双签。</div></div></div>`;
+  } catch (e) {
+    document.getElementById('flow-body').innerHTML = `<tr><td colspan="6"><div class="empty">邀测运营面未达：${escH(errorText(e))}</div></td></tr>`;
+    document.getElementById('code-text').textContent = '未达';
+  } finally { applyRoleGates(); }
+}
+async function writeClipboard(text) {
+  if (!text) throw new Error('没有可复制内容');
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard_unavailable');
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    const ok = typeof document.execCommand === 'function' && document.execCommand('copy');
+    ta.remove();
+    if (!ok) throw new Error('复制失败');
+  }
+}
+async function copyCode() {
+  const t = document.getElementById('code-text').textContent;
+  try { await writeClipboard(t); alert('今日口令已复制'); }
+  catch { alert('复制失败——请选中口令手动复制'); }
+}
+async function doIssue() {
+  if (!guardAction('invite')) return;
+  const phone = document.getElementById('i-phone').value.trim();
+  const ent = document.getElementById('i-ent').value.trim();
+  const ttl = Number(document.getElementById('i-ttl').value);
+  if (!/^1\d{10}$/.test(phone)) return alert('手机号须 11 位');
+  if (ent.length < 2) return alert('企业名称至少 2 字');
+  try {
+    const r = await api('adminDaily.issue', { phone, enterpriseName: ent, ttlHours: ttl });
+    const out = document.getElementById('issue-out');
+    out.style.display = 'block';
+    out.innerHTML = `<b>专属邀测码（仅此一次显示——立即复制保存，${ttl}h 内开户有效）：</b><br><span class="mono" style="font-size:15px;user-select:all">${escH(r.code)}</span><br><button class="btn sm ghost" style="margin-top:8px" data-code="${escH(r.code)}" onclick="copyInviteCode(this)">复制专属码</button>`;
+    await loadCodes();
+  } catch (e) { alert('签发未达：' + (e.message || 'unknown')); }
+}
+async function copyInviteCode(el) {
+  const code = el.dataset.code || '';
+  try { await writeClipboard(code); el.textContent = '已复制'; setTimeout(() => { el.textContent = '复制专属码'; }, 1600); }
+  catch { alert('复制失败——请选中上方专属码手动复制'); }
+}
+function showQuota() {
+  const el = document.getElementById('quota-card');
+  const opening = el.style.display === 'none';
+  if (opening) document.getElementById('q-num').value = String(CURRENT_QUOTA);
+  el.style.display = opening ? '' : 'none';
+}
+async function doQuota() {
+  if (!guardAction('invite')) return;
+  const quota = Number(document.getElementById('q-num').value);
+  const reviewToken = document.getElementById('q-rtok').value.trim();
+  if (!reviewToken) return alert('双签面：填复核人 token（另一 admin——操作人与复核人不同才生效）');
+  try {
+    await api('adminDaily.quotaSet', { quota, reviewToken });
+    alert(`已调至每日 ${quota} 家（双签已生效）`);
+    await loadCodes();
+  } catch (e) { alert('调配未达：' + (e.message || 'unknown')); }
+  finally { document.getElementById('q-rtok').value = ''; }
+}
+let dualTokenResolve = null;
+function askReviewToken() {
+  return new Promise((resolve) => {
+    dualTokenResolve = resolve;
+    const input = document.getElementById('dual-token');
+    input.value = '';
+    document.getElementById('dual-gate').style.display = 'flex';
+    input.focus();
+  });
+}
+function resolveDualToken(ok) {
+  const value = ok ? document.getElementById('dual-token').value.trim() : '';
+  document.getElementById('dual-gate').style.display = 'none';
+  document.getElementById('dual-token').value = '';
+  const resolve = dualTokenResolve; dualTokenResolve = null;
+  if (resolve) resolve(value);
+}
+async function doRevoke(id) {
+  if (!guardAction('invite')) return;
+  const reviewToken = await askReviewToken();
+  if (!reviewToken) return;
+  try {
+    await api('adminDaily.revoke', { id, reviewToken });
+    await loadCodes();
+  } catch (e) { alert('吊销未达：' + (e.message || 'unknown')); }
+}
+
+// ═══ 视图② 下载通道管理 ═══
+function desktopReleaseRow(exe) {
+  return `<tr>
+    <td><b>组织运行时桌面端 · Windows x64</b></td>
+    <td class="mono" style="color:var(--cyan)">${exe ? escH(exe.file) : '未达'}</td>
+    <td class="mono">${exe ? (exe.sizeBytes / 1048576).toFixed(1) + ' MB' : '—'}</td>
+    <td class="mono">${exe ? escH(exe.mtime.replace('T', ' ').slice(5, 16)) : '—'}</td>
+    <td><span class="st dim">桌面端不走 OTA（整包面）</span></td>
+    <td><span class="note">重打包走部署链</span></td>
+  </tr>`;
+}
+async function loadReleaseCurrent() {
+  try {
+    const c = await api('adminRelease.current');
+    const d = c.app;
+    const appRow = d ? `<tr>
+      <td><b>NumX Max APP · Android</b></td>
+      <td class="mono" style="color:var(--mint)">v${escH(d.version)}</td>
+      <td class="mono">numx-max-v${escH(d.version)}.apk</td>
+      <td class="mono">—</td>
+      <td><span class="st ok">runtime ${escH(d.version)}</span></td>
+      <td><button class="btn ghost sm" data-do="rollback-fill" data-version="${escH(d.version)}">回滚面</button></td>
+    </tr>` : '<tr><td colspan="6"><div class="empty">通道未初始化或配置不可读——发布只接受已落盘真实 APK，可用首发修复。</div></td></tr>';
+    document.getElementById('cur-body').innerHTML = appRow + desktopReleaseRow(c.desktop);
+  } catch (e) {
+    document.getElementById('cur-body').innerHTML = `<tr><td colspan="6"><div class="empty">当前通道未达：${escH(errorText(e))}</div></td></tr>`;
+  }
+}
+async function loadReleaseHistory() {
+  try {
+    const h = await api('adminRelease.history');
+    document.getElementById('hist-list').innerHTML = h.items.length ? h.items.map(it => `
+      <div class="tl-item">
+        <div class="tt">${escH(it.file)} ${h.current && it.file === `numx-max-v${h.current}.apk` ? '<span class="st ok" style="margin-left:8px">当前</span>' : ''}</div>
+        <div class="bb">${(it.sizeBytes / 1048576).toFixed(1)} MB · ${escH(it.mtime.replace('T', ' ').slice(0, 16))} · ${it.synced ? `<button class="btn ghost sm" data-do="rollback-fill" data-version="${escH(it.file.replace('numx-max-v', '').replace('.apk', ''))}">回滚到此版</button>` : '<span class="st dim">dist 未同步——不可回滚</span>'}</div>
+      </div>`).join('') : '<div class="empty">暂无历史包</div>';
+  } catch (e) {
+    document.getElementById('hist-list').innerHTML = `<div class="empty">历史面未达：${escH(errorText(e))}</div>`;
+  }
+}
+async function loadRelease() {
+  await Promise.all([loadReleaseCurrent(), loadReleaseHistory()]);
+  applyRoleGates();
+}
+async function doPublish() {
+  if (!guardAction('release')) return;
+  const version = document.getElementById('p-ver').value.trim();
+  const url = document.getElementById('p-url').value.trim();
+  const notes = document.getElementById('p-notes').value.trim();
+  const reviewToken = document.getElementById('p-rtok').value.trim();
+  if (!/^\d+\.\d+\.\d+$/.test(version)) return alert('版本号须 x.y.z');
+  if (!url || !notes || !reviewToken) return alert('下载链/更新说明/复核人 token 三面必填');
+  try {
+    const r = await api('adminRelease.publish', { version, url, notes, reviewToken });
+    alert(r.warning || `已发布 v${version}（双签生效）`);
+    await loadRelease();
+  } catch (e) { alert('发布未达：' + (e.message || 'unknown')); }
+  finally { document.getElementById('p-rtok').value = ''; }
+}
+async function doRollback() {
+  if (!guardAction('release')) return;
+  const version = document.getElementById('r-ver').value.trim();
+  const reviewToken = document.getElementById('r-rtok').value.trim();
+  if (!version || !reviewToken) return alert('回滚版本+复核人 token 必填');
+  try {
+    const r = await api('adminRelease.rollback', { version, reviewToken });
+    alert(r.warning || `已回滚至 v${version}`);
+    await loadRelease();
+  } catch (e) { alert('回滚未达：' + (e.message || 'unknown')); }
+  finally { document.getElementById('r-rtok').value = ''; }
+}
+
+// ═══ 视图③ 组织运行时管理台 ═══
+async function loadRuntime() {
+  try {
+    const r = await api('adminDaily.runtime');
+    const degraded = r.degraded === true;
+    document.getElementById('runtime-badge').textContent = degraded ? 'RUNTIME 未达' : 'RUNTIME LIVE';
+    const w = r.workers?.load?.workers ?? r.workers?.online ?? r.workers?.count ?? '—';
+    document.getElementById('r-workers').textContent = w;
+    document.getElementById('r-exec').textContent = r.executing ?? '—';
+    document.getElementById('r-queue').textContent = `队列 ${r.queued ?? '—'}`;
+    document.getElementById('r-failed').textContent = r.failedToday ?? '—';
+    const runtimeTodo = document.getElementById('runtime-todo');
+    if (runtimeTodo) {
+      runtimeTodo.innerHTML = degraded
+        ? '<div class="alert"><div><div class="t">运行时状态未达</div><div class="b">无法判定今日失败数，不显示“无异常”。</div></div></div>'
+        : Number(r.failedToday) > 0
+          ? `<div class="alert err"><div><div class="t">今日失败 ${escH(r.failedToday)} 件可重派</div><div class="b">进「系统 → 组织运行时管理台」处理，不用进库。</div></div></div>`
+          : '<div class="alert ok"><div><div class="t">今日无失败任务</div><div class="b">运行时正常，不展开异常面。</div></div></div>';
+    }
+    const fl = document.getElementById('fail-list');
+    if (degraded) {
+      fl.innerHTML = '<div class="empty">运行时未达——工位/队列数据不可用，不显示“无异常”。</div>';
+    } else if (!r.failedItems?.length) {
+      fl.innerHTML = '<div class="alert ok"><div><div class="t">今日无失败任务</div><div class="b">正常面不再展开（默认收敛纪律）。</div></div></div>';
+    } else {
+      fl.innerHTML = r.failedItems.map(t => `
+        <div class="alert err"><div><div class="t">任务 #${escH(t.id)} ${escH(t.title || '未命名')}</div><div class="b">${escH(t.stationKey)} · 重试 ${escH(t.retryCount)} 次——可重派（同任务内容新单面）。</div></div>
+        <div class="act"><button class="btn sm" onclick="alert('重派面：到组织壳派活链重发同任务（管理端不直改队列——队列纪律不越界）')">重派说明</button></div></div>`).join('');
+    }
+    document.getElementById('rev-body').innerHTML = `
+      <tr><td>待复核队列</td><td class="mono">${r.reviewsPending == null ? '—（未达）' : `${r.reviewsPending} 件`}</td><td><button class="btn ghost sm" onclick="openReviewSpace()">去复核</button></td></tr>
+      <tr><td>训练任务状态</td><td class="mono">以训练实时屏为准</td><td><button class="btn ghost sm" onclick="document.querySelector('.ni[data-view=training]').click()">去看任务</button></td></tr>`;
+    const ce = r.costEstimate || { available: false };
+    const costRows = Array.isArray(ce.rows) ? ce.rows : [];
+    document.getElementById('cost-body').innerHTML = ce.available && costRows.length ? costRows.map(x => `
+      <tr><td>${escH(x.label)}</td><td class="mono">${escH(x.usage ?? '—')}</td><td class="mono">${escH(x.amountCny ?? '—')}</td><td class="mono">${escH(x.share ?? '—')}</td></tr>`).join('') : '<tr><td colspan="4"><div class="empty">scnet 用量 API 未接——调用量、金额与占比均不估算。</div></td></tr>';
+    document.getElementById('health-list').innerHTML = degraded ? '<div class="empty">健康环未达——不做正常判定。</div>' : (r.health || []).length ? r.health.map(h => `
+      <div class="alert ${h.score < 60 ? 'err' : h.score < 85 ? '' : 'ok'}">
+        <div><div class="t">${escH(h.dept)} · 健康分 ${escH(h.score)}</div><div class="b">通过率 ${h.passRate != null ? escH(h.passRate) + '%' : '—'}${h.warnN ? ' · 告警 ' + escH(h.warnN) : ''}</div></div>
+        <div class="act"><button class="btn sm" onclick="openReviewSpace()">转复核</button></div>
+      </div>`).join('') : '<div class="alert ok"><div><div class="t">健康环无异常</div><div class="b">审计面无 C 级未双签动作——全部留痕。</div></div></div>';
+  } catch (e) {
+    document.getElementById('runtime-badge').textContent = 'RUNTIME 未达';
+    const runtimeTodo = document.getElementById('runtime-todo');
+    if (runtimeTodo) runtimeTodo.innerHTML = '<div class="alert"><div><div class="t">运行时状态未达</div><div class="b">无法判定今日失败数，不显示“无异常”。</div></div></div>';
+    for (const id of ['r-workers', 'r-exec', 'r-failed']) document.getElementById(id).textContent = '—';
+    document.getElementById('r-queue').textContent = '队列 —';
+    document.getElementById('fail-list').innerHTML = `<div class="empty">运行时面未达：${escH(errorText(e))}</div>`;
+    document.getElementById('rev-body').innerHTML = '<tr><td colspan="3"><div class="empty">复核计数未达——不显示 0 件。</div></td></tr>';
+    document.getElementById('health-list').innerHTML = '<div class="empty">健康环未达——不做正常判定。</div>';
+    document.getElementById('cost-body').innerHTML = '<tr><td colspan="4"><div class="empty">成本面未达——不估算。</div></td></tr>';
+  } finally { applyRoleGates(); }
+}
+// 管理台扫码登录（adminQr 三件：open/status——session+pollSecret 双证面；APP 确认回传 admin token）
+let QR_SESSION = '', QR_SECRET = '', QR_TIMER = null, QR_FAILS = 0, QR_BUSY = false;
+function clearQrSession() {
+  if (QR_TIMER) clearInterval(QR_TIMER);
+  QR_TIMER = null; QR_SESSION = ''; QR_SECRET = ''; QR_FAILS = 0; QR_BUSY = false;
+  document.getElementById('qr-box').style.display = 'none';
+}
+async function openQr() {
+  clearQrSession();
+  try {
+    const r = await api('adminQr.open', { target: 'admin_console' });
+    QR_SESSION = r.session; QR_SECRET = r.pollSecret; QR_FAILS = 0;
+    document.getElementById('qr-box').style.display = 'block';
+    document.getElementById('qr-meta').textContent = `${r.consoleName} · 实例 ${r.consoleId} · 会话尾号 ${r.sessionHint} · 有效至 ${new Date(r.expiresAt).toLocaleTimeString()}`;
+    document.getElementById('qr-err').style.display = 'none';
+    const img = document.getElementById('qr-img');
+    img.onerror = () => {
+      const err = document.getElementById('qr-err');
+      err.textContent = '二维码图未达或会话已失效——请重新出码';
+      err.style.display = 'block';
+    };
+    if (!r.imagePath) throw new Error("出码响应缺图片路径——请核管理端版本");
+    img.src = `${API_BASE}${r.imagePath}?text=${encodeURIComponent(r.qrText)}`;
+    if (QR_TIMER) clearInterval(QR_TIMER);
+    QR_TIMER = setInterval(pollQr, 2500);
+  } catch (e) { alert('出码未达：' + errorText(e)); }
+}
+async function pollQr() {
+  if (!QR_SESSION || QR_BUSY) return;
+  QR_BUSY = true;
+  try {
+    const r = await api('adminQr.status', { session: QR_SESSION, pollSecret: QR_SECRET });
+    QR_FAILS = 0;
+    if (r.state === 'confirmed' && r.token) {
+      clearQrSession();
+      TOKEN = r.token;
+      sessionStorage.setItem('ops_token', TOKEN);
+      hideGate();
+      await boot();
+    } else if (r.state === 'expired') {
+      clearQrSession();
+      alert('二维码已过期——请重新出码');
+    } else if (r.state === 'ip_mismatch') {
+      clearQrSession();
+      alert('当前网络与出码时不一致——请重新出码后重扫');
+    } else if (r.state === 'unavailable') {
+      clearQrSession();
+      alert('来源 IP 暂不可识别——请检查网络或管理端代理配置后重试');
+    } else if (r.state === 'consumed') {
+      clearQrSession();
+      alert('该二维码已使用——如需登录请重新出码');
+    }
+  } catch (e) {
+    QR_FAILS += 1;
+    if (QR_FAILS >= 3) {
+      const err = document.getElementById('qr-err');
+      err.textContent = `扫码轮询连续未达：${errorText(e)}`;
+      err.style.display = 'block';
+    }
+  } finally {
+    QR_BUSY = false;
+  }
+}
+
+// 训练实时屏
+async function loadTraining() {
+  try {
+    const r = await api('adminTraining.jobs');
+    const passScore = r.evalPassScore ?? 70;
+    document.getElementById('eval-pass-label').textContent = passScore;
+    const body = document.getElementById('job-body');
+    if (!r.items?.length) {
+      body.innerHTML = '<tr><td colspan="7"><div class="empty">暂无训练任务——先按包构建。</div></td></tr>';
+      return;
+    }
+    const stName = { ready: '样本备', training: '训练中', evaluated: '评测过', published: '已上架' };
+    const stClass = { published: 'ok', training: 'pend' };
+    body.innerHTML = r.items.map(j => `<tr>
+      <td class="mono">${escH(j.pkg)}${j.pkgLabel ? `<div class="note">${escH(j.pkgLabel)}</div>` : ''}</td>
+      <td>${escH(j.dept || '协同')}</td>
+      <td class="mono">${escH(j.sample_count)}</td>
+      <td><span class="st ${stClass[j.status] ?? 'dim'}">${stName[j.status] || j.status}</span></td>
+      <td class="mono">${escH(j.lora_version || '—')}${j.note ? `<div class="note">${escH(j.note)}</div>` : ''}</td>
+      <td class="mono" style="color:${(j.eval_score ?? 0) >= passScore ? 'var(--mint)' : 'var(--amber)'}">${j.eval_score ?? '—'}</td>
+      <td>
+        ${j.status === 'ready' ? `<button class="btn sm" data-action="training" data-do="run" data-pkg="${escH(j.pkg)}">启动训练</button>` : ''}
+        ${j.status === 'evaluated' ? `<button class="btn sm mint" data-action="training" data-do="training-publish" data-pkg="${escH(j.pkg)}">发布到超市</button>` : ''}
+        ${j.status === 'published' ? `<span class="st ok">已上架 #${escH(j.agent_id ?? '')}</span>` : ''}
+      </td>
+    </tr>`).join('');
+  } catch (e) {
+    document.getElementById('job-body').innerHTML = `<tr><td colspan="7"><div class="empty">训练实时屏未达：${escH(errorText(e))}</div></td></tr>`;
+  } finally { applyRoleGates(); }
+}
+async function doBuild() {
+  if (!guardAction('training')) return;
+  const pkg = document.getElementById('t-pkg').value;
+  try {
+    const r = await api('adminTraining.build', { pkg });
+    alert(`样本 ${r.sampleCount} 件已备——可启动训练`);
+    await loadTraining();
+  } catch (e) { alert('构建未达：' + (e.message || 'unknown')); }
+}
+async function doRun(pkg) {
+  if (!guardAction('training')) return;
+  const reviewToken = document.getElementById('t-rtok').value.trim();
+  if (!reviewToken) return alert('启动训练=C 级双签：填复核人 token');
+  try {
+    const r = await api('adminTraining.run', { pkg, reviewToken });
+    alert(r.dedup ? '任务已在训练中——未重复启动' : '超算训练已启动（后台执行——状态轮询看列表）');
+    await loadTraining();
+  } catch (e) { alert('启动未达：' + (e.message || 'unknown')); }
+  finally { document.getElementById('t-rtok').value = ''; }
+}
+async function doTrainingPublish(pkg) {
+  if (!guardAction('training')) return;
+  const reviewToken = document.getElementById('t-rtok').value.trim();
+  if (!reviewToken) return alert('发布=C 级双签：填复核人 token');
+  try {
+    const r = await api('adminTraining.publish', { pkg, reviewToken });
+    alert(r.dedup ? `任务已上架——未重复创建数字员工 #${r.agentId ?? ''}` : `已发布到数字员工超市（pending 待审核）#${r.agentId ?? ''}`);
+    await loadTraining();
+  } catch (e) { alert('发布未达：' + (e.message || 'unknown')); }
+  finally { document.getElementById('t-rtok').value = ''; }
+}
+
+// 动态按钮统一事件委托：数据只进 data-*，不进入 onclick 的 JS 源码，杜绝属性实体解码后的注入面。
+document.addEventListener('click', (event) => {
+  const el = event.target instanceof Element ? event.target.closest('[data-do]') : null;
+  if (!el) return;
+  const action = el.dataset.do;
+  if (action === 'revoke') return doRevoke(Number(el.dataset.id));
+  if (action === 'rollback-fill') { document.getElementById('r-ver').value = el.dataset.version || ''; return; }
+  if (action === 'run') return doRun(el.dataset.pkg || '');
+  if (action === 'training-publish') return doTrainingPublish(el.dataset.pkg || '');
+});
+
+// 自举
+void boot();
+
+</script>
+</body>
+</html>

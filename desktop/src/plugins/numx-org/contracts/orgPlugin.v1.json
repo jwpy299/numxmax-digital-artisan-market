@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "network": {
+    "endpoint": "https://wb.example.invalid",
+    "allowedOrigins": [
+      "https://wb.example.invalid"
+    ],
+    "allowInsecureLoopback": false
+  },
+  "limits": {
+    "maxPayloadBytes": 131072,
+    "maxResponseBytes": 1048576,
+    "maxIpcEnvelopeBytes": 4096,
+    "timeoutMs": 20000,
+    "queueTimeoutMs": 20000,
+    "artifactTimeoutMs": 60000,
+    "maxConcurrentRequests": 8,
+    "maxQueuedRequests": 32,
+    "sessionTtlMs": 1800000,
+    "credentialCacheTtlMs": 60000,
+    "maxSessions": 128,
+    "sessionIdChars": 128,
+    "tokenChars": 4096,
+    "credentialHashChars": 32,
+    "collabListLimit": 20,
+    "queryLimitMin": 1,
+    "queryLimitMax": 50,
+    "deptChars": 32,
+    "taskChars": 2000,
+    "fileNameChars": 120,
+    "recipientChars": 48,
+    "collabNoteChars": 300,
+    "fileUriChars": 300,
+    "reviewTitleChars": 200,
+    "reviewIdChars": 40,
+    "reviewSummaryChars": 4000,
+    "reviewDomainChars": 16,
+    "reviewNoteChars": 500,
+    "noticeIdChars": 40,
+    "noticeIdsMax": 50,
+    "priorityMax": 9,
+    "idemKeyMinChars": 8,
+    "idemKeyChars": 64,
+    "stationKeyChars": 96,
+    "payloadUriChars": 300,
+    "maxArtifactBytes": 16777216
+  },
+  "procedures": {
+    "read": [
+      "harnessProxy.healthz",
+      "harnessProxy.identityMe",
+      "harnessProxy.tasks",
+      "harnessProxy.delegations",
+      "harnessProxy.load",
+      "harnessProxy.employees",
+      "harnessProxy.reviews",
+      "harnessProxy.cabinHealth",
+      "harnessProxy.feedbackSamples",
+      "harnessProxy.notices",
+      "harnessProxy.deptOrders",
+      "harnessProxy.collabList",
+      "harnessProxy.collabRecipients",
+      "harnessProxy.collabFile",
+      "entCabin.map",
+      "orgTask.delegation",
+      "packages.list",
+      "packages.myEntitlement",
+      "agentic.authLogin",
+      "orgPlugin.workspaces"
+    ],
+    "write": [
+      "harnessProxy.delegate",
+      "harnessProxy.reviewSubmit",
+      "harnessProxy.reviewDecide",
+      "harnessProxy.noticeRead",
+      "harnessProxy.collabPropose",
+      "harnessProxy.collabLinkDecide",
+      "harnessProxy.collabSend",
+      "harnessProxy.collabOrderDecide",
+      "harnessProxy.dispatchFile",
+      "entCabin.create",
+      "wbInvites.create",
+      "orgPlugin.installTicket",
+      "orgPlugin.installConfirm"
+    ],
+    "public": [
+      "agentic.authLogin",
+      "agentic.authRegister",
+      "betaDaily.today",
+      "sms.sendCode",
+      "betaDaily.redeem"
+    ]
+  },
+  "confirmProcedures": [
+    "harnessProxy.delegate",
+    "harnessProxy.reviewDecide",
+    "harnessProxy.reviewSubmit",
+    "harnessProxy.noticeRead",
+    "harnessProxy.collabPropose",
+    "harnessProxy.collabLinkDecide",
+    "harnessProxy.collabSend",
+    "harnessProxy.collabOrderDecide",
+    "harnessProxy.dispatchFile",
+    "entCabin.create",
+    "wbInvites.create",
+    "orgPlugin.installTicket",
+    "orgPlugin.installConfirm"
+  ],
+  "roleCapabilities": {
+    "plugin.install": [
+      "manager"
+    ],
+    "cabin.manage": [
+      "admin",
+      "manager"
+    ],
+    "member.invite": [
+      "admin",
+      "manager"
+    ],
+    "task.execute": [
+      "staff"
+    ],
+    "review.submit": [
+      "staff"
+    ],
+    "review.decide": [
+      "admin",
+      "manager"
+    ],
+    "collab.scoped": [],
+    "digital_employee.invoke": []
+  }
+}

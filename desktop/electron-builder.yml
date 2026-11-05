@@ -1,0 +1,19 @@
+# electron-builder 配置（NumX Max 桌面壳——非 org 壳隔离版）
+extends: ./electron-builder.shared.yml
+files:
+  - src/**
+  - assets/**
+  - frontend/**
+  - package.json
+  - "!frontend/org/**"
+  - "!src/plugins/numx-org/**"
+  - "!src/plugins/numx-org-runtime/**"
+  - "!src/plugins/dept-finance/**"
+  - "!src/org-transport/**"
+  - "!src/orgPluginHost.cjs"
+  - "!src/orgRuntimeIpc.cjs"
+  - "!node_modules/numx-org/**"
+  - "!node_modules/dept-finance/**"
+  - "!node_modules/@numx/org-transport/**"
+  - "!node_modules/superjson/**"
+  - "!node_modules/copy-anything/**"

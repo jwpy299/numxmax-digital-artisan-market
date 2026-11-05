@@ -1,0 +1,35 @@
+{
+  "name": "numx-desktop-shell",
+  "version": "1.0.1",
+  "private": true,
+  "description": "NumX Max 桌面壳（个人/企业/超终三端 Electron 封装）",
+  "main": "src/main.cjs",
+  "scripts": {
+    "test": "node scripts/run-tests.cjs",
+    "start": "electron .",
+    "prestart": "node scripts/render-preload.cjs personal",
+    "gen:preload": "node scripts/render-preload.cjs",
+    "prepack:win": "node scripts/render-preload.cjs personal",
+    "prepack:win:nsis": "node scripts/render-preload.cjs personal",
+    "prepack:linux": "node scripts/render-preload.cjs personal",
+    "pack:win": "electron-builder --win zip",
+    "pack:win:nsis": "electron-builder --win nsis",
+    "pack:linux": "electron-builder --linux AppImage",
+    "sync:org-ui": "node scripts/sync-org-ui-assets.cjs"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "@numx/org-transport": "file:src/org-transport",
+    "numx-org": "file:src/plugins/numx-org",
+    "superjson": "^2.2.6"
+  },
+  "engines": {
+    "node": ">=22.8"
+  },
+  "optionalDependencies": {
+    "dept-finance": "file:src/plugins/dept-finance"
+  }
+}

@@ -1,0 +1,205 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 228 50% 4%;
+    --foreground: 222 100% 96%;
+    --card: 224 48% 13%;
+    --card-foreground: 222 100% 96%;
+    --popover: 224 48% 10%;
+    --popover-foreground: 222 100% 96%;
+    --primary: 250 100% 68%;
+    --primary-foreground: 222 100% 96%;
+    --secondary: 224 30% 18%;
+    --secondary-foreground: 222 60% 90%;
+    --muted: 224 30% 18%;
+    --muted-foreground: 220 30% 60%;
+    --accent: 224 30% 20%;
+    --accent-foreground: 222 100% 96%;
+    --destructive: 350 89% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 230 40% 22%;
+    --input: 230 40% 22%;
+    --ring: 250 100% 68%;
+    --radius: 0.625rem;
+    --sidebar-background: 228 50% 5%;
+    --sidebar-foreground: 222 60% 90%;
+    --sidebar-primary: 250 100% 68%;
+    --sidebar-primary-foreground: 222 100% 96%;
+    --sidebar-accent: 224 30% 18%;
+    --sidebar-accent-foreground: 222 100% 96%;
+    --sidebar-border: 230 40% 22%;
+    --sidebar-ring: 187 92% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+  body {
+    @apply bg-void text-ink-primary font-sans antialiased;
+    background-image:
+      linear-gradient(rgba(124, 140, 222, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124, 140, 222, 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  ::selection {
+    background: rgba(124, 92, 255, 0.35);
+    color: #edf2ff;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #05070f;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1b2647;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2a3a6b;
+  }
+}
+
+@layer components {
+  /* glassmorphism panel */
+  .glass-panel {
+    background: rgba(16, 24, 48, 0.5);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(124, 140, 222, 0.16);
+  }
+  /* brand gradient text */
+  .text-brand-gradient {
+    background: linear-gradient(135deg, #f5a524 0%, #ffd08a 55%, #34d399 130%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-amber-gradient {
+    background: linear-gradient(90deg, #f5a524, #fcd34d);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .bg-brand-gradient {
+    background: linear-gradient(135deg, #f5a524 0%, #ffd08a 55%, #34d399 130%);
+  }
+  .bg-amber-gradient {
+    background: linear-gradient(90deg, #f5a524, #fcd34d);
+  }
+  /* nebula halo decoration */
+  .nebula-halo {
+    background: radial-gradient(ellipse, rgba(245, 164, 36, 0.20), transparent 65%);
+  }
+  /* HUD english label */
+  .hud-label {
+    @apply font-mono text-[11px] font-medium uppercase text-ink-faint;
+    letter-spacing: 0.18em;
+  }
+
+  /* hide native cursor when custom cursor is active (desktop) */
+  .custom-cursor-active,
+  .custom-cursor-active * {
+    cursor: none !important;
+  }
+
+  /* 3s cyan pulse halo on concept icons */
+  .pulse-halo {
+    animation: pulse-halo 3s ease-in-out infinite;
+  }
+  @keyframes pulse-halo {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.7;
+    }
+    50% {
+      transform: scale(1.08);
+      opacity: 1;
+      box-shadow: 0 0 16px rgba(34, 211, 238, 0.4);
+    }
+  }
+
+  /* 2.5s glow blink for the vertical 市场推荐 badge */
+  .animate-rec-badge {
+    animation: rec-badge 2.5s ease-in-out infinite;
+  }
+  @keyframes rec-badge {
+    0%,
+    100% {
+      box-shadow: 0 0 0 rgba(245, 165, 36, 0);
+    }
+    50% {
+      box-shadow: 0 0 18px rgba(245, 165, 36, 0.55);
+    }
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* ── 赛博工业风 · 可复用工具类 ─────────────────────────────── */
+  /* 网格纹理背景（琥珀色细线 + 低透明度，深色工业底上叠用） */
+  .cyber-grid-bg {
+    background-image:
+      linear-gradient(rgba(245, 165, 36, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(245, 165, 36, 0.05) 1px, transparent 1px),
+      linear-gradient(rgba(52, 211, 153, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(52, 211, 153, 0.025) 1px, transparent 1px);
+    background-size:
+      56px 56px,
+      56px 56px,
+      14px 14px,
+      14px 14px;
+  }
+  /* 扫描线纹理（repeating-linear-gradient 细横线，叠加在卡片/hero 上） */
+  .cyber-scanline {
+    position: relative;
+  }
+  .cyber-scanline::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(237, 242, 255, 0.028) 0px,
+      rgba(237, 242, 255, 0.028) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  }
+  /* 发光描边卡片：琥珀描边 + 琥珀外发光，hover 增强 */
+  .cyber-glow-card {
+    border: 1px solid rgba(245, 165, 36, 0.22);
+    box-shadow:
+      0 0 0 1px rgba(245, 165, 36, 0.04),
+      0 0 22px rgba(245, 165, 36, 0.08),
+      inset 0 0 24px rgba(245, 165, 36, 0.03);
+    transition:
+      border-color 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+  .cyber-glow-card:hover {
+    border-color: rgba(245, 165, 36, 0.42);
+    box-shadow:
+      0 0 0 1px rgba(245, 165, 36, 0.08),
+      0 0 34px rgba(245, 165, 36, 0.16),
+      inset 0 0 30px rgba(245, 165, 36, 0.05);
+  }
+  /* 等宽字体 DID / 编号 / 哈希芯片标签 */
+  .cyber-chip {
+    @apply inline-flex items-center gap-1.5 rounded-sm border border-amber-500/30 bg-amber-500/[0.06] px-2 py-1 font-mono text-[11px] tracking-wider text-amber-400/90;
+  }
+}

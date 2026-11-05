@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer"><!-- 安全钉（NumX wb#128 复锚 high②）：外链资源 Referer 不带 URL（防 ?token= 随 Referer 头外泄） -->
+<title>NumX Max · 数字员工工位（L3 岗位屏·真数据版）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#050810; --panel:#0c1220; --panel2:#111a2b; --line:#1a2540;
+  --cyan:#22d3ee; --mint:#34d399; --amber:#fbbf24; --red:#f87171; --violet:#a78bfa;
+  --t1:#f4f7fb; --t2:#9fb0c7; --t3:#5c6b84;
+  --mono:'JetBrains Mono',monospace; --sans:'Inter',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:14px;overflow-x:hidden;
+  background-image:radial-gradient(ellipse 900px 480px at 75% -10%,rgba(34,211,238,.05),transparent),
+  repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(34,211,238,.008) 3px);}
+.hd{height:52px;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--line);background:rgba(12,18,32,.88);backdrop-filter:blur(10px);position:sticky;top:0;z-index:9}
+.me-avatar{width:32px;height:32px;border-radius:8px;background:rgba(34,211,238,.14);border:1px solid rgba(34,211,238,.4);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;color:var(--cyan);flex:none}
+.hd .ttl{font-size:15px;font-weight:700}
+.hd .sub{font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:.14em}
+.hd .sp{flex:1}
+.chip{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;padding:4px 9px;border-radius:99px;border:1px solid var(--line);color:var(--t2)}
+.chip.on{color:var(--mint);border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.08)}
+.chip.me{color:var(--cyan);border-color:rgba(34,211,238,.4);background:rgba(34,211,238,.08)}
+.live{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--mint);border:1px solid rgba(52,211,153,.35);padding:5px 11px;border-radius:99px;background:rgba(52,211,153,.07)}
+.live.off{color:var(--amber);border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.07)}
+.live.off .dot{animation-name:pulseOff}
+@keyframes pulseOff{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(251,191,36,.5)}50%{opacity:.5;box-shadow:0 0 0 5px rgba(251,191,36,0)}}
+.cempty{color:var(--t3);font-size:11px;padding:8px 0}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.clock{font-family:var(--mono);font-size:11px;color:var(--t2)}
+main{max-width:1180px;margin:0 auto;padding:16px 18px 24px;display:grid;grid-template-columns:1fr 330px;gap:14px;align-items:start}
+@media(max-width:980px){main{grid-template-columns:1fr}}
+/* 左：工作流 */
+.sec-h{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--t3);display:flex;align-items:center;gap:8px;margin:4px 0 10px}
+.sec-h::after{content:'';flex:1;height:1px;background:var(--line)}
+/* 任务清单 */
+.taskcard{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden;margin-bottom:12px}
+.tc-h{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--t2)}
+.tc-h .sp{flex:1}
+.badge{font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--cyan);color:#04121a}
+.tk{padding:6px 12px 10px}
+.ti{display:flex;gap:10px;padding:9px 0;border-bottom:1px dashed rgba(26,37,64,.8);align-items:flex-start}
+.ti:last-child{border:none}
+.ti .st{flex:none;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9.5px;font-weight:700;margin-top:1px}
+.ti .st.done{border:1px solid var(--mint);color:var(--mint);background:rgba(52,211,153,.08)}
+.ti .st.doing{border:1px solid var(--cyan);color:var(--cyan);background:rgba(34,211,238,.08);animation:pulse 1.8s ease-in-out infinite}
+.ti .st.todo{border:1px solid var(--line);color:var(--t3)}
+.ti .tt{flex:1}
+.ti .t1{font-size:12.5px;font-weight:600;line-height:1.45}
+.ti .t2{font-size:11px;color:var(--t2);margin-top:3px;line-height:1.5}
+.ti .tm{font-family:var(--mono);font-size:8.5px;color:var(--t3);margin-top:4px;letter-spacing:.06em}
+.ti .act{flex:none;display:flex;flex-direction:column;gap:5px;margin-top:2px}
+.btn{font-family:var(--mono);font-size:9.5px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;border:1px solid transparent;transition:all .2s;white-space:nowrap}
+.btn.go{background:var(--cyan);color:#04121a}
+.btn.go:hover{box-shadow:0 0 14px rgba(34,211,238,.4)}
+.btn.sub{background:transparent;color:var(--mint);border-color:rgba(52,211,153,.4)}
+.btn.sub:hover{background:rgba(52,211,153,.1)}
+.btn.call{background:transparent;color:var(--amber);border-color:rgba(251,191,36,.45)}
+.btn.call:hover{background:rgba(251,191,36,.1)}
+/* 协同叫人 */
+.callcard{border:1px solid rgba(251,191,36,.3);border-radius:10px;background:rgba(251,191,36,.04);overflow:hidden;margin-bottom:12px}
+.callcard .tc-h{border-bottom-color:rgba(251,191,36,.2);color:var(--amber)}
+.callbox{padding:11px 12px}
+.callbox textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;color:var(--t1);font-family:var(--sans);font-size:12px;min-height:64px;outline:none;resize:vertical}
+.callbox textarea:focus{border-color:var(--amber)}
+.callbox .row{display:flex;gap:9px;margin-top:9px;align-items:center}
+.callbox .hint{font-family:var(--mono);font-size:9px;color:var(--t3);flex:1;letter-spacing:.06em}
+/* 产出史 */
+.hist{padding:4px 12px 10px}
+.hi{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px dashed rgba(26,37,64,.8);font-size:11.5px}
+.hi:last-child{border:none}
+.hi .ht{flex:1}
+.hi .hm{font-family:var(--mono);font-size:9px;color:var(--t3)}
+.hi .hb{font-family:var(--mono);font-size:8.5px;padding:2px 6px;border-radius:4px}
+.hb.pass{color:var(--mint);border:1px solid rgba(52,211,153,.35)}
+.hb.hold{color:var(--amber);border:1px solid rgba(251,191,36,.35)}
+.hb.back{color:var(--red);border:1px solid rgba(248,113,113,.35)}
+/* 右栏 */
+.rt{display:flex;flex-direction:column;gap:12px}
+.pkgcard,.statcard{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:12px 13px}
+.pkgcard .pn{font-size:13px;font-weight:700}
+.pkgcard .pr{font-family:var(--mono);font-size:9px;color:var(--violet);letter-spacing:.08em;margin-top:3px}
+.pkgcard .duty{margin-top:10px;font-size:11.5px;line-height:1.6;color:var(--t2)}
+.pkgcard .duty b{color:var(--t1)}
+.pkgcard .stds{margin-top:10px;padding-top:9px;border-top:1px dashed rgba(26,37,64,.9)}
+.std{display:flex;gap:8px;font-size:11px;padding:4px 0;color:var(--t2);align-items:baseline}
+.std::before{content:'▸';color:var(--cyan);flex:none}
+.krow{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+.kc{border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:8px 10px}
+.kc .kl{font-family:var(--mono);font-size:8px;letter-spacing:.14em;color:var(--t3)}
+.kc .kv{font-family:var(--mono);font-size:16px;font-weight:700;margin-top:3px}
+.kc .kv small{font-size:9px;color:var(--t3);font-weight:400}
+/* 舱长消息 */
+.cmsg{margin-top:10px;border-top:1px dashed rgba(26,37,64,.9);padding-top:9px;font-size:11px;line-height:1.55;color:var(--t2)}
+.cmsg b{color:var(--mint)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#223252;border-radius:99px}
+.rv{animation:rv .5s var(--ease) both}
+@keyframes rv{from{opacity:0;transform:translateY(8px)}}
+#workspace-strip{grid-column:1/-1}
+</style>
+</head>
+<body>
+<header class="hd">
+  <div class="me-avatar">AI</div>
+  <div><div class="ttl" id="station-title">数字员工岗位屏</div><div class="sub" id="station-sub">身份与岗位信息加载中…</div></div>
+  <div class="sp"></div>
+  <span class="chip me">我是数字员工（AI 工位）</span>
+  <span class="chip on">复核岗挂签在轨</span>
+  <span class="chip">组织律 1+1+N</span>
+  <div class="live"><span class="dot"></span>STATION LINKING</div>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+
+<main class="rv">
+  <div id="workspace-strip"></div>
+  <section>
+    <div class="sec-h">岗位工作流 · 今日</div>
+    <div class="callcard">
+      <div class="tc-h">协同叫人 · 关键节点请舱长定夺<span class="sp"></span><span class="badge" style="background:var(--amber)">组织律</span></div>
+      <div class="callbox">
+        <textarea id="callwhy" placeholder="卡在哪/要定夺什么——写清约束面（例：哪件产出、卡在哪步、要舱长定什么）"></textarea>
+        <div class="row">
+          <span class="hint">叫人=挂「待舱长定夺」件+推送舱长——人不到场我不越权</span>
+          <button class="btn call call-human-btn" onclick="callHuman()">⚑ 请舱长定夺</button>
+        </div>
+      </div>
+    </div>
+    <div class="taskcard">
+      <div class="tc-h"><span id="task-heading">未结任务</span><span class="sp"></span><span class="badge" id="task-count">—</span></div>
+      <div class="tk" id="tk"></div>
+    </div>
+    <div class="taskcard">
+      <div class="tc-h" id="hist-heading">产出史 · 复核面</div>
+      <div class="hist" id="hist"></div>
+    </div>
+  </section>
+
+  <aside class="rt">
+    <div class="pkgcard">
+      <div class="pn">岗位包与产出标准</div>
+      <div class="pr">真实岗位信息将在数据接通后显示</div>
+      <div class="duty">当前接口未提供岗位包详情，不展示虚构职责、订阅版本或交付标准。</div>
+    </div>
+    <div class="statcard">
+      <div class="pn" style="font-size:12px">我的面 · 本周</div>
+      <div class="krow">
+        <div class="kc"><div class="kl">已交报告</div><div class="kv">—<small> 份</small></div></div>
+        <div class="kc"><div class="kl">复核通过率</div><div class="kv">—<small>%</small></div></div>
+        <div class="kc"><div class="kl">被打回</div><div class="kv">—<small> 份</small></div></div>
+        <div class="kc"><div class="kl">纠偏对齐</div><div class="kv">—<small> 次</small></div></div>
+      </div>
+      <div class="cmsg">复核与纠偏记录将在真实任务和复核数据到达后显示。</div>
+    </div>
+  </aside>
+</main>
+
+<script src="org-boot.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+/* ═══ 真数据层（W1-09 L3 接线：任务史/产出史/叫人/提交四面接真+降级诚实面）═══ */
+let SEAT = new URLSearchParams(location.search).get('seat') || '';
+let DEPT = new URLSearchParams(location.search).get('dept') || '';
+let DEPT_STATUS = 'loading';
+let CABIN_NAME = '';
+let HIST_FAILED = 0;
+let HIST_EXPECTED = 4;
+const LIVE = { mode: 'loading' };
+let ME_ORG_ROLE = '';
+async function api(path, input = {}) { return apiRaw(`harnessProxy.${path}`, input); }
+function setBadge() { setBadgeFor(LIVE, 'STATION'); }
+
+function scopeText(area) {
+  const noun = area === 'tasks' ? '任务' : '复核记录';
+  if (DEPT_STATUS === 'forbidden') {
+    const recovery = ME_ORG_ROLE === 'staff' ? '' : '<br><a href="index.html">回全企屏选择部门</a>';
+    return `部门不存在、未映射或无权查看：未读取其他部门${noun}${recovery}`;
+  }
+  if (DEPT_STATUS === 'unmapped') {
+    const recovery = ME_ORG_ROLE === 'staff' ? '请企业负责人完成部门映射' : '<br><a href="index.html">回全企屏选择部门</a>';
+    return `部门未映射：请选择真实部门舱，未显示其他部门${noun}<br>${recovery}`;
+  }
+  if (DEPT_STATUS === 'unavailable') return '部门映射未读回（API 未达）';
+  return '';
+}
+function renderTasks() {
+  $('#task-count').textContent = LIVE.mode === 'loading' || DEPT_STATUS !== 'ready' || !TASKS_LOADED ? '—' : `${TASK_TOTAL} 项`;
+  const blocked = scopeText('tasks');
+  let html = '';
+  if (LIVE.mode === 'loading') html = '<div class="cempty">数据加载中…</div>';
+  else if (blocked) html = `<div class="cempty">${blocked}</div>`;
+  else if (TASKS.length) {
+    html = TASKS.map((t, index) => {
+      const status = t[0] === 'doing' ? 'doing' : 'todo';
+      return `<div class="ti"><div class="st ${status}">${status === 'doing' ? '●' : ''}</div>
+ <div class="tt"><div class="t1">${escH(t[1])}</div><div class="t2">${escH(t[2])}</div><div class="tm">${escH(t[3])}</div></div>
+ <div class="act">${status === 'doing' ? (SUBMITTED_REVIEW.has(reviewKey(t)) ? '<span class="badge">已提交复核</span>' : '<button class="btn sub review-write-btn" onclick="submitReview(${index})">提交复核</button>') : ''}</div></div>`;
+    }).join('');
+  } else html = '<div class="cempty">暂无真实任务</div>';
+  $('#tk').innerHTML = html;
+  syncReviewSubmitting();
+}
+
+function renderHist() {
+  const blocked = scopeText('reviews');
+  let html = '';
+  if (LIVE.mode === 'loading') html = '<div class="cempty">数据加载中…</div>';
+  else if (blocked) html = `<div class="cempty">${blocked}</div>`;
+  else if (HIST.length) {
+    html = HIST.map(h => {
+      const cls = h[3] === 'pass' ? 'pass' : h[3] === 'back' ? 'back' : 'hold';
+      return `<div class="hi"><span class="ht">${escH(h[0])}</span><span class="hm">${escH(h[1])}</span><span class="hb ${cls}">${escH(h[2])}</span></div>`;
+    }).join('');
+  } else html = HIST_FAILED === HIST_EXPECTED
+    ? '<div class="cempty">复核记录未读回（API 未达）</div>'
+    : HIST_FAILED > 0
+      ? '<div class="cempty">部分复核记录未读回（API 未达）</div>'
+      : '<div class="cempty">暂无真实复核记录</div>';
+  if (HIST.length && HIST_FAILED > 0) html += '<div class="cempty">部分复核记录未读回（API 未达）</div>';
+  $('#hist').innerHTML = html;
+}
+async function wbApi(path, input = {}) { return apiRaw(path, input); }
+let TASK_TOTAL = 0;
+let TASKS_LOADED = false;
+async function bootStation() {
+  resetWorkspaceDirectory();
+  setBadge();
+  try {
+    await api('healthz');
+    const rawMe = await api('identityMe').catch(() => null);
+    persistQueryToken(rawMe);
+    const me = rawMe || {};
+    ME_ORG_ROLE = me.orgRole || '';
+    if (!TOKEN) failWorkspaceDirectory('未登录或会话已失效');
+    const workspaceResult = TOKEN ? loadWorkspaceDirectory() : Promise.resolve(null);
+    const cabinMap = await wbApi('entCabin.map').catch(() => null);
+    const requestedDept = DEPT;
+    const cabins = Array.isArray(cabinMap?.cabins) ? cabinMap.cabins : null;
+    if (!rawMe) {
+      DEPT = '';
+      CABIN_NAME = '';
+      DEPT_STATUS = 'unavailable';
+    } else if (cabins) {
+      const ownTarget = cabins.find(c => !!me.deptId && (c.departmentId === me.deptId || c.code === me.deptId));
+      const requestedTarget = requestedDept ? cabins.find(c => c.departmentId === requestedDept || c.code === requestedDept) : null;
+      const canPickRequested = me.orgRole === 'admin' || !!requestedTarget; // entCabin.map 已按本人+org_member 多部门收敛
+      const target = requestedDept ? (canPickRequested ? requestedTarget : null) : (ownTarget || (cabins.length === 1 ? cabins[0] : null));
+      DEPT = target?.code || '';
+      CABIN_NAME = target?.name || '';
+      if (target) DEPT_STATUS = 'ready';
+      else if (requestedDept && !requestedTarget) DEPT_STATUS = 'forbidden';
+      else DEPT_STATUS = 'unmapped';
+    } else {
+      DEPT = '';
+      CABIN_NAME = '';
+      DEPT_STATUS = 'unavailable';
+    }
+    // 先解析真实舱码与可见范围，再计算“当前”标记，不能把 departmentId 当 cabinCode。
+    void workspaceResult.then(() => { paintWorkspaceStrip(); });
+    const scopeReady = DEPT_STATUS === 'ready';
+    const [tasks, pending, approved, rejected, signed] = await Promise.all([
+      scopeReady ? api('tasks', { limit: 50, dept: DEPT }).catch(() => null) : null,
+      scopeReady ? api('reviews', { status: 'pending', limit: 20, dept: DEPT }).catch(() => null) : null,
+      scopeReady ? api('reviews', { status: 'approved', limit: 20, dept: DEPT }).catch(() => null) : null,
+      scopeReady ? api('reviews', { status: 'rejected', limit: 20, dept: DEPT }).catch(() => null) : null,
+      scopeReady ? api('reviews', { status: 'signed', limit: 20, dept: DEPT }).catch(() => null) : null,
+    ]);
+    const inScope = (row) => SEAT ? String(row.station_key || '') === SEAT : true;
+    const mine = tasks?.items ? tasks.items.filter(inScope) : [];
+    if (!SEAT && mine.length) {
+      const stationKeys = [...new Set(mine.map((row) => String(row.station_key || '')).filter(Boolean))];
+      if (stationKeys.length === 1) SEAT = stationKeys[0];
+    }
+
+    if (rawMe) {
+      let deptLabel = CABIN_NAME || DEPT;
+      if (DEPT_STATUS === 'forbidden') deptLabel = '不可用或无权查看';
+      else if (!deptLabel) deptLabel = DEPT_STATUS === 'unavailable' ? '映射未读回' : '未映射';
+      $('#station-title').textContent = `${me.displayName || me.username || '数字员工'} · 岗位屏`;
+      $('#station-sub').textContent = `部门 ${deptLabel} · ${me.orgRole === 'staff' ? '数字员工' : '组织成员'}`;
+      $('#task-heading').textContent = SEAT ? `未结任务 · ${SEAT}` : `部门未结任务 · ${deptLabel}`;
+      $('#hist-heading').textContent = SEAT ? '我的产出史 · 复核面' : '部门产出史 · 复核面';
+    } else {
+      $('#station-sub').textContent = '身份未读回（API 未达）';
+    }
+    const reviewTimestamp = (row) => parseOrgTimestamp(row.created_at) ?? 0;
+    const taskIdCandidates = (row) => [['task', row.id], ['task', row.task_id], ['delegation', row.delegation_id], ['task', row.taskId], ['task', row.task?.id]]
+      .map(([ns, value]) => ({ ns, id: String(value ?? '').trim() })).filter((candidate) => candidate.id !== '');
+    const reviewIdCandidates = (row) => [['task', row.task_id], ['delegation', row.delegation_id], ['task', row.taskId], ['task', row.task?.id]]
+      .map(([ns, value]) => ({ ns, id: String(value ?? '').trim() })).filter((candidate) => candidate.id !== '');
+    const openTasks = mine.filter(t => t.status !== 'done'); // 未结任务不含已完成；完成记录留在复核史
+    openTasks.sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running'));
+    TASK_TOTAL = openTasks.length;
+    if (tasks?.items) {
+      TASKS = openTasks.slice(0, 10).map((t, taskIndex) => {
+        const candidates = taskIdCandidates(t);
+        return [t.status === 'running' ? 'doing' : 'todo', t.task || t.title || '', (t.result_digest || '').slice(0, 80) || '执行面', String(t.finished_at || t.created_at || '').slice(11, 16), candidates[0]?.id ?? '', String(t.station_key || ''), String(t.created_at || t.finished_at || ''), candidates, taskIndex];
+      });
+    } else TASKS = [];
+    const historyResponses = [pending, approved, rejected, signed];
+    HIST_EXPECTED = historyResponses.length;
+    HIST_FAILED = scopeReady ? historyResponses.filter((r) => !r).length : 0;
+    const historyOk = historyResponses.some(Boolean);
+    const reviewStatusRank = (status) => status === 'pending' ? 2 : status === 'rejected' ? 1 : 0;
+    const historyItems = historyResponses.filter(Boolean).flatMap(r => r.items || [])
+      .sort((a, b) => (reviewTimestamp(b) - reviewTimestamp(a)) || (reviewStatusRank(b.status) - reviewStatusRank(a.status)) || String(b.review_id || b.id || '').localeCompare(String(a.review_id || a.id || '')));
+    const mineR = historyItems.filter(inScope);
+    const latestReviewByTitle = new Map();
+    const latestReviewByTaskId = new Map();
+    for (const row of mineR) {
+      const title = String(row.title || '').trim().slice(0, 120);
+      if (title && !latestReviewByTitle.has(title)) latestReviewByTitle.set(title, row.status);
+      for (const candidate of reviewIdCandidates(row)) {
+        const key = `${candidate.ns}:${candidate.id}`;
+        if (!latestReviewByTaskId.has(key)) latestReviewByTaskId.set(key, { status: row.status, timestamp: reviewTimestamp(row) });
+      }
+    }
+    const taskTitleCounts = new Map();
+    for (const task of TASKS) {
+      const title = String(task[1] || '').trim().slice(0, 120);
+      if (title) taskTitleCounts.set(title, (taskTitleCounts.get(title) || 0) + 1);
+    }
+    for (const task of TASKS) {
+      const title = String(task[1] || '').trim().slice(0, 120);
+      const taskIds = Array.isArray(task[7]) ? task[7] : [];
+      const matchedReviews = taskIds.map((candidate) => latestReviewByTaskId.get(`${candidate.ns}:${candidate.id}`)).filter(Boolean)
+        .sort((a, b) => b.timestamp - a.timestamp);
+      let latestStatus = matchedReviews[0]?.status;
+      // 无稳定 ID 时只允许唯一标题兜底；同名任务映射不可靠，不随意改变提交状态。
+      if (latestStatus === undefined) {
+        if (!title || taskTitleCounts.get(title) !== 1) continue;
+        latestStatus = latestReviewByTitle.get(title);
+      }
+      if (latestStatus === 'pending') SUBMITTED_REVIEW.add(reviewKey(task)); // pending 有歧义也先锁住，避免重复提交。
+      else if (latestStatus) SUBMITTED_REVIEW.delete(reviewKey(task));
+    }
+    if (historyOk) {
+      HIST = mineR.slice(0, 6).map(r => [r.title || '', (r.created_at || '').slice(5, 16), r.status === 'approved' ? '通过' : r.status === 'signed' ? '通过·挂签' : r.status === 'rejected' ? ('打回·' + (r.review_note || '').slice(0, 12)) : '复核中', r.status === 'approved' || r.status === 'signed' ? 'pass' : r.status === 'rejected' ? 'back' : 'hold']);
+    } else HIST = [];
+    const reached = [tasks, ...historyResponses].filter(Boolean).length;
+    if (!rawMe) LIVE.mode = 'demo';
+    else if (!scopeReady) LIVE.mode = cabinMap ? 'partial' : 'demo';
+    else if (reached === 1 + HIST_EXPECTED) LIVE.mode = 'live';
+    else LIVE.mode = reached > 0 ? 'partial' : 'demo';
+    TASKS_LOADED = !!tasks?.items;
+    renderTasks(); renderHist();
+    if (scopeReady && !tasks?.items) $('#tk').innerHTML = '<div class="cempty">任务未读回（API 未达）</div>';
+    if (scopeReady && !historyOk) $('#hist').innerHTML = '<div class="cempty">复核记录未读回（API 未达）</div>';
+    setBadge();
+  } catch (e) {
+    if (WORKSPACE_DIRECTORY === undefined) failWorkspaceDirectory(e);
+    LIVE.mode = 'demo'; DEPT_STATUS = 'unavailable'; TASKS = []; HIST = []; TASK_TOTAL = 0; TASKS_LOADED = false; HIST_FAILED = HIST_EXPECTED;
+    paintWorkspaceStrip();
+    $('#station-sub').textContent = '数据未接通（API 未达）';
+    $('#tk').innerHTML = '<div class="cempty">任务未读回（API 未达）</div>';
+    $('#hist').innerHTML = '<div class="cempty">复核记录未读回（API 未达）</div>';
+    $('#task-count').textContent = '—';
+    setBadge();
+  }
+}
+function stationWriteAllowed(action) {
+  if (LIVE.mode === 'loading') { alert('身份与部门映射加载中，请稍后再提交'); return false; }
+  if (LIVE.mode === 'demo') { alert(`数据未接通——${action}不落库（API 未达）`); return false; }
+  if (DEPT_STATUS === 'forbidden') { alert(`部门不存在、未映射或无权操作——${action}已阻止`); return false; }
+  if (DEPT_STATUS === 'unmapped') { alert(`部门未映射——${action}不会写入其他部门`); return false; }
+  if (DEPT_STATUS !== 'ready') { alert(`部门映射未读回——${action}暂不提交`); return false; }
+  return true;
+}
+// 叫人真面
+// 叫人与提交共用同一在飞闸，双击/连点不得生成重复复核件。
+let REVIEW_SUBMITTING = false;
+let CALLING = false;
+const SUBMITTED_REVIEW = new Set();
+function reviewKey(task) {
+  const realId = String(task[4] || '').trim();
+  return realId || `idless:${task[5]}:${task[6] || `#${task[8]}`}:${task[1]}`;
+}
+function syncReviewSubmitting() {
+  document.querySelectorAll('button[onclick^="submitReview"]').forEach((button) => { button.disabled = REVIEW_SUBMITTING; button.title = REVIEW_SUBMITTING ? '提交中…' : ''; });
+  document.querySelectorAll('.call-human-btn').forEach((button) => { button.disabled = CALLING; button.title = CALLING ? '叫人中…' : ''; });
+}
+async function callHuman() {
+  const v = $('#callwhy').value.trim();
+  if (!v) { $('#callwhy').focus(); return; }
+  if (!stationWriteAllowed('叫人') || CALLING) return;
+  CALLING = true;
+  syncReviewSubmitting();
+  try {
+    if (!SEAT) { alert('工位归属未读回——叫人不提交无工位记录'); return; }
+    await api('reviewSubmit', { itemType: 'warn', title: '协同叫人：请舱长定夺', summary: v, stationKey: SEAT, dept: DEPT });
+    alert('已挂「待舱长定夺」件+推送舱长——人不到场我不越权。');
+    $('#callwhy').value = '';
+  } catch (e) { alert('叫人失败：' + String(e?.message || e).slice(0, 80)); }
+  finally { CALLING = false; syncReviewSubmitting(); }
+}
+// 提交复核真面：reviewSubmit（产出件挂 pending）
+async function submitReview(index) {
+  const task = TASKS[index];
+  if (!task || SUBMITTED_REVIEW.has(reviewKey(task)) || !stationWriteAllowed('产出提交') || REVIEW_SUBMITTING) return;
+  REVIEW_SUBMITTING = true;
+  syncReviewSubmitting();
+  try {
+    const title = String(task[1] || '产出提交').slice(0, 120);
+    const summary = String(task[2] || task[1] || '产出件提交复核').slice(0, 1000);
+    const stationKey = SEAT || task[5] || '';
+    if (!stationKey) { alert('任务工位归属未读回——产出不提交无工位记录'); return; }
+    await api('reviewSubmit', { itemType: 'rpt', title, summary, stationKey, dept: DEPT });
+    SUBMITTED_REVIEW.add(reviewKey(task));
+    renderTasks();
+    alert('产出已挂复核队列——复核岗挂签在轨。');
+  } catch (e) { alert('提交失败：' + String(e?.message || e).slice(0, 80)); }
+  finally { REVIEW_SUBMITTING = false; syncReviewSubmitting(); }
+}
+let TASKS=[];
+let HIST=[];
+renderTasks(); renderHist();
+void bootStation();
+setInterval(()=>{const d=new Date();$('#clock').textContent=d.toTimeString().slice(0,8);},1000);
+
+</script>
+</body>
+</html>

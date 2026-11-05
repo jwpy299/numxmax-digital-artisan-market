@@ -1,0 +1,5 @@
+# NumX Max 组织运行时与部门舱插件声明
+- insert:
+    - id: numx-org
+      name: numx-org
+      inject: [tools, credentials, connection]

@@ -1,0 +1,17 @@
+# electron-builder 各壳共享配置；壳专属 files 放在 electron-builder*.yml。
+appId: com.numxmax.desktop
+productName: NumX Max
+copyright: 广东灵智枢生态科技有限公司
+win:
+  target: nsis
+  icon: assets/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: NumX Max
+  artifactName: ${name}-setup-${version}-${env.NUMX_SHELL}.exe
+directories:
+  output: dist-out

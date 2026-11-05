@@ -1,0 +1,37 @@
+name: public-release-ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: runtime/package-lock.json
+      - run: npm ci
+        working-directory: runtime
+      - run: npm run check
+        working-directory: runtime
+      - run: npm run build
+        working-directory: runtime
+      - run: npm test
+        working-directory: runtime
+      - run: npm ci
+        working-directory: desktop
+      - run: npm test
+        working-directory: desktop
+      - run: node runtime/scripts/license-gate.mjs
+      - uses: gitleaks/gitleaks-action@v2
+      - uses: anchore/sbom-action@v0
+        with:
+          path: runtime
+          format: cyclonedx-json
+          output-file: SBOM.ci.json

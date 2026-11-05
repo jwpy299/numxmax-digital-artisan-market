@@ -1,0 +1,22 @@
+{
+  "name": "dept-finance",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NumX Max 财务部门舱插件",
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test ../../../test/dept-finance/*.test.mjs"
+  },
+  "dependencies": {
+    "numx-org": "file:../numx-org"
+  }
+}

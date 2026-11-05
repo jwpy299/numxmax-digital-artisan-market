@@ -1,0 +1,5 @@
+# NumX Max 财务部门舱插件声明
+- insert:
+    - id: dept-finance
+      name: dept-finance
+      inject: [tools, credentials]

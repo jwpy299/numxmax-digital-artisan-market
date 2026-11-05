@@ -1,0 +1,20 @@
+{
+  "id": "agent.tasks",
+  "name": "Example Tasks Plugin",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "permissions": [
+    "tasks:read"
+  ],
+  "platform": "linux",
+  "arch": "x64",
+  "dependencies": [
+    "runtime:oap-v0"
+  ],
+  "files": {
+    "index.js": "example-only-not-a-real-hash"
+  },
+  "payloadSha256": "example-only-not-a-real-hash",
+  "signature": "example-only-not-a-real-signature",
+  "signerPublicKey": "example-only-not-a-real-public-key"
+}

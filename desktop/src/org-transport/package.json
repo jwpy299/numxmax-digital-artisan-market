@@ -1,0 +1,10 @@
+{
+  "name": "@numx/org-transport",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NumX 组织运行时共享 JSON 与 tRPC 传输边界",
+  "main": "index.cjs",
+  "dependencies": {
+    "superjson": "^2.2.6"
+  }
+}

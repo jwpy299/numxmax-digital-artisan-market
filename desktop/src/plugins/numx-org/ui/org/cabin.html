@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer"><!-- 安全钉（NumX wb#128 复锚 high②）：外链资源 Referer 不带 URL（防 ?token= 随 Referer 头外泄） -->
+<title>NumX Max · 舱长工作台 — 人机协同（真数据版）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#050810; --panel:#0c1220; --panel2:#111a2b; --line:#1a2540;
+  --cyan:#22d3ee; --mint:#34d399; --amber:#fbbf24; --red:#f87171; --violet:#a78bfa;
+  --t1:#f4f7fb; --t2:#9fb0c7; --t3:#5c6b84;
+  --mono:'JetBrains Mono',monospace; --sans:'Inter',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:14px;overflow:hidden;
+  background-image:radial-gradient(ellipse 900px 480px at 75% -10%,rgba(34,211,238,.05),transparent),
+  repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(34,211,238,.008) 3px);}
+.hd{height:52px;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--line);background:rgba(12,18,32,.88);backdrop-filter:blur(10px);position:relative;z-index:9}
+/* W3-02 推送三通铃铛（待审 todo/告警 warn[叫人=warn 子面]——出站队列轮询面） */
+.bell{position:relative;cursor:pointer;display:flex;align-items:center;padding:4px;color:var(--t2,#9FB0C8)}
+.bell:hover{color:var(--cyan)}
+.nbadge{position:absolute;top:-4px;right:-8px;background:var(--amber);color:#1A1206;border-radius:9px;font-size:9px;padding:0 5px;font-weight:700;font-family:var(--mono);line-height:1.7}
+.nbox{position:absolute;right:0;top:28px;width:340px;max-height:380px;overflow:auto;background:rgba(12,18,32,.97);border:1px solid var(--line);border-radius:12px;z-index:50;box-shadow:0 12px 40px rgba(0,0,0,.5);cursor:default;text-align:left}
+.nbox .nact{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:11px;color:var(--t2)}
+.nbox .nact a{cursor:pointer;color:var(--cyan)}
+.nbox .ni{padding:9px 12px;border-bottom:1px solid var(--line)}
+.nbox .ni:last-child{border-bottom:none}
+.nbox .ni .nt{font-weight:700;color:var(--t1);font-size:12px;margin-bottom:3px}
+.nbox .ni .nb{color:var(--t3);font-size:11px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nbox .ni .nm{color:var(--t3);font-size:9px;font-family:var(--mono);margin-top:4px;letter-spacing:.08em}
+
+.cab{width:30px;height:30px;border-radius:8px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.35);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;color:var(--mint);flex:none}
+.hd .ttl{font-size:15px;font-weight:700}
+.hd .sub{font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:.16em}
+.hd .sp{flex:1}
+.chip{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;padding:4px 9px;border-radius:99px;border:1px solid var(--line);color:var(--t2)}
+.chip.on{color:var(--mint);border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.08)}
+.chip.me{color:var(--cyan);border-color:rgba(34,211,238,.4);background:rgba(34,211,238,.08)}
+.live{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--mint);border:1px solid rgba(52,211,153,.35);padding:5px 11px;border-radius:99px;background:rgba(52,211,153,.07)}
+.live.off{color:var(--amber);border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.07)}
+.live.off .dot{animation-name:pulseOff}
+@keyframes pulseOff{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(251,191,36,.5)}50%{opacity:.5;box-shadow:0 0 0 5px rgba(251,191,36,0)}}
+.cempty{color:var(--t3);font-size:11px;padding:8px 0}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,.5)}50%{opacity:.5;box-shadow:0 0 0 5px rgba(52,211,153,0)}}
+.clock{font-family:var(--mono);font-size:11px;color:var(--t2)}
+/* 三栏 */
+.wrap{display:grid;grid-template-columns:252px 1fr 320px;height:calc(100% - 52px)}
+/* 左：数字员工工位列 */
+.lt{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;overflow:hidden}
+.sec-h{flex:none;font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;color:var(--t3);display:flex;align-items:center;gap:8px;padding:11px 13px 8px}
+.sec-h::after{content:'';flex:1;height:1px;background:var(--line)}
+.crews{flex:1;overflow-y:auto;padding:2px 9px 12px}
+.crew{border:1px solid var(--line);border-radius:8px;background:var(--panel2);margin:6px 0;padding:8px 9px;cursor:pointer;transition:border-color .2s}
+.crew:hover{border-color:rgba(34,211,238,.4)}
+.crew.on{border-color:var(--cyan);background:rgba(34,211,238,.06)}
+.crew.rev-pending{border-color:rgba(251,191,36,.45)}
+.cr-h{display:flex;align-items:center;gap:8px}
+.cr-av{width:26px;height:26px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:700;background:rgba(34,211,238,.1);color:var(--cyan);border:1px solid rgba(34,211,238,.3)}
+.cr-n{font-size:12px;font-weight:600}
+.cr-r{font-family:var(--mono);font-size:8px;color:var(--t3);letter-spacing:.06em;margin-top:2px}
+.led{width:6px;height:6px;border-radius:50%;margin-left:auto;flex:none}
+.led.g{background:var(--mint);box-shadow:0 0 7px var(--mint)}
+.led.y{background:var(--amber);box-shadow:0 0 7px var(--amber)}
+.led.dim{background:var(--t3)}
+.cr-s{display:flex;gap:7px;margin-top:7px;font-family:var(--mono);font-size:8.5px;color:var(--t2)}
+.cr-s .tg{padding:1.5px 6px;border-radius:4px;border:1px solid var(--line)}
+.cr-s .tg.busy{color:var(--cyan);border-color:rgba(34,211,238,.35)}
+.cr-s .tg.wait{color:var(--amber);border-color:rgba(251,191,36,.35)}
+.cr-s .tg.idle{color:var(--t3)}
+.cr-s .tg.unknown{color:var(--t3);border-style:dashed}
+.cr-s .tg.me{color:var(--mint);border-color:rgba(52,211,153,.35)}
+.cr-s .tg.pkg{color:var(--violet);border-color:rgba(167,139,250,.35)}
+.pkg-tag{font-family:var(--mono);font-size:8px;color:var(--violet);letter-spacing:.06em;margin-top:5px;display:block}
+/* 中：协同面 */
+.ct{overflow-y:auto;padding:14px 16px 20px;display:flex;flex-direction:column;gap:13px}
+/* 派活收件箱 */
+.card{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden;flex:none}
+.card-h{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--t2)}
+.card-h .sp{flex:1}
+.badge{font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--cyan);color:#04121a}
+.badge.am{background:var(--amber)}
+.inbox{padding:4px 12px 10px}
+.ib{display:flex;gap:10px;padding:9px 0;border-bottom:1px dashed rgba(26,37,64,.8);align-items:flex-start}
+.ib:last-child{border:none}
+.ib .src{font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:4px;flex:none;margin-top:2px;letter-spacing:.06em}
+.src.boss{background:rgba(34,211,238,.12);color:var(--cyan)}
+.src.boss2{background:rgba(52,211,153,.1);color:var(--mint)}
+.src.sys{background:rgba(251,191,36,.12);color:var(--amber)}
+.ib .it{flex:1}
+.ib .it1{font-size:12px;line-height:1.5}
+.ib .it1 b{color:var(--cyan)}
+.ib .im{font-family:var(--mono);font-size:8.5px;color:var(--t3);margin-top:3px}
+.asg{flex:none;display:flex;gap:6px;margin-top:2px}
+.asg select{background:var(--panel2);border:1px solid var(--line);color:var(--t1);font-family:var(--mono);font-size:9.5px;padding:5px 7px;border-radius:6px;outline:none;cursor:pointer}
+.asg button{background:var(--cyan);border:none;color:#04121a;font-family:var(--mono);font-size:9.5px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer}
+.asg button:hover{box-shadow:0 0 12px rgba(34,211,238,.4)}
+.asg .done{font-family:var(--mono);font-size:9px;color:var(--mint);padding:5px 4px}
+/* 待审产出队列（心脏） */
+.rev-list{max-height:430px;overflow-y:auto}
+.ritem{padding:10px 12px;border-bottom:1px dashed rgba(26,37,64,.8);transition:background .2s}
+.ritem:hover{background:rgba(34,211,238,.03)}
+.ritem:last-child{border:none}
+.ri-h{display:flex;align-items:center;gap:8px}
+.ri-tag{font-family:var(--mono);font-size:8.5px;padding:2px 6px;border-radius:4px;letter-spacing:.06em;flex:none}
+.ri-tag.doc{color:var(--cyan);border:1px solid rgba(34,211,238,.35)}
+.ri-tag.rpt{color:var(--mint);border:1px solid rgba(52,211,153,.35)}
+.ri-tag.warn{color:var(--amber);border:1px solid rgba(251,191,36,.35)}
+.ri-who{font-family:var(--mono);font-size:9px;color:var(--t2)}
+.ri-when{font-family:var(--mono);font-size:8.5px;color:var(--t3);margin-left:auto}
+.ri-t{font-size:12.5px;font-weight:600;margin-top:6px;line-height:1.45}
+.ri-d{font-size:11px;color:var(--t2);margin-top:4px;line-height:1.55}
+.ri-d b{color:var(--amber)}
+.ri-d .hl{background:rgba(251,191,36,.15);color:var(--amber);padding:0 3px;border-radius:3px}
+.ri-act{display:flex;gap:8px;margin-top:9px;align-items:center}
+.btn{font-family:var(--mono);font-size:10px;font-weight:700;padding:6px 13px;border-radius:7px;cursor:pointer;border:1px solid transparent;transition:all .2s}
+.btn.ok{background:var(--mint);color:#04120c}
+.btn.ok:hover{box-shadow:0 0 14px rgba(52,211,153,.4)}
+.btn.no{background:transparent;color:var(--red);border-color:rgba(248,113,113,.45)}
+.btn.no:hover{background:rgba(248,113,113,.1)}
+.btn.look{background:transparent;color:var(--t2);border-color:var(--line)}
+.btn.look:hover{border-color:var(--cyan);color:var(--cyan)}
+.ri-note{flex:1}
+.ri-note input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 9px;color:var(--t1);font-family:var(--sans);font-size:11px;outline:none}
+.ri-note input:focus{border-color:var(--red)}
+.ri-note input::placeholder{color:var(--t3);font-size:10.5px}
+.sig{font-family:var(--mono);font-size:8px;color:var(--violet);letter-spacing:.06em;margin-top:5px;display:none}
+.ritem.rej .sig{display:block}
+/* 舱内会话 */
+.chat{display:flex;flex-direction:column;flex:1;min-height:230px}
+.msgs2{flex:1;overflow-y:auto;padding:10px 12px}
+.m2{display:flex;gap:8px;margin-bottom:11px}
+.m2 .ma{width:24px;height:24px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;font-weight:700}
+.m2.h .ma{background:rgba(52,211,153,.14);color:var(--mint);border:1px solid rgba(52,211,153,.35)}
+.m2.a .ma{background:rgba(34,211,238,.12);color:var(--cyan);border:1px solid rgba(34,211,238,.3)}
+.m2 .mt2{font-size:12px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;max-width:88%}
+.m2.a .mt2{background:rgba(34,211,238,.05);border-color:rgba(34,211,238,.18)}
+.m2 .mt2 b{color:var(--cyan)}
+.m2 .mm2{font-family:var(--mono);font-size:8px;color:var(--t3);margin-top:3px}
+.inp2{flex:none;display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
+.inp2 select{background:var(--panel2);border:1px solid var(--line);color:var(--t1);font-family:var(--mono);font-size:10px;padding:9px 8px;border-radius:7px;outline:none}
+.inp2 input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;color:var(--t1);font-family:var(--sans);font-size:12.5px;outline:none}
+.inp2 input:focus{border-color:var(--cyan)}
+.inp2 button{background:var(--cyan);border:none;color:#04121a;font-weight:700;padding:0 14px;border-radius:8px;cursor:pointer;font-size:13px}
+/* 右：舱态势 */
+.rt{border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:12px 13px}
+.krow{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
+.kc{border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:9px 10px}
+.kc .kl{font-family:var(--mono);font-size:8px;letter-spacing:.14em;color:var(--t3)}
+.kc .kv{font-family:var(--mono);font-size:16px;font-weight:700;margin-top:4px}
+.kc .kv small{font-size:9px;color:var(--t3);font-weight:400}
+.alist{border:1px solid var(--line);border-radius:9px;background:var(--panel);margin-bottom:12px;overflow:hidden}
+.al{padding:8px 11px;border-bottom:1px dashed rgba(26,37,64,.8);display:flex;gap:8px;font-size:11px;align-items:flex-start}
+.al:last-child{border:none}
+.al .sev2{width:6px;height:6px;border-radius:1px;flex:none;margin-top:4px}
+.sev2.wr{background:var(--amber)}.sev2.cr{background:var(--red)}.sev2.ok{background:var(--mint)}
+.al .at{flex:1;line-height:1.45;color:var(--t1)}
+.al .am{font-family:var(--mono);font-size:8.5px;color:var(--t3)}
+.ops2{padding:4px 11px 10px}
+.op{display:grid;grid-template-columns:66px 1fr 44px;gap:8px;align-items:center;padding:5.5px 0}
+.op .on2{font-family:var(--mono);font-size:9.5px;color:var(--cyan)}
+.op .ob{height:4px;background:var(--panel2);border-radius:99px;overflow:hidden}
+.op .obf{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--cyan),var(--mint))}
+.op .ov{font-family:var(--mono);font-size:9px;color:var(--t2);text-align:right}
+.siglog{border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:8px 11px}
+.sl-i{display:flex;gap:7px;padding:5px 0;font-size:10.5px;align-items:baseline}
+.sl-i .st2{font-family:var(--mono);font-size:8.5px;color:var(--violet);flex:none}
+.sl-i .sx{color:var(--t2);line-height:1.4}
+.sl-i .sx b{color:var(--t1)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#223252;border-radius:99px}
+.rv{animation:rv .5s var(--ease) both}
+@keyframes rv{from{opacity:0;transform:translateY(8px)}}
+</style>
+</head>
+<body>
+<header class="hd">
+  <div class="cab">舱</div>
+  <div><div class="ttl">部门舱工作台 · <span id="cabin-head-name">舱长</span></div><div class="sub" id="cabin-sub">身份与部门信息加载中…</div></div>
+  <div class="sp"></div>
+  <span class="chip me">我是舱长（人）</span>
+  <span class="chip on">复核岗挂签在轨</span>
+  <span class="chip">组织律 1+1+N</span>
+  <div class="live"><span class="dot"></span>CABIN LINKING</div>
+  <div class="bell" id="bell" onclick="toggleNoticeBox(event)" title="组织通知（待审/告警/叫人）">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <span class="nbadge" id="nbadge" style="display:none"></span>
+    <div class="nbox" id="nbox" style="display:none" onclick="event.stopPropagation()"></div>
+  </div>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+
+<div class="wrap">
+  <!-- 左：数字员工工位列 -->
+  <aside class="lt">
+    <div class="sec-h">舱内数字员工 · <span id="crew-count">— 数字员工</span></div>
+    <div class="crews" id="crews"></div>
+    <!-- 邀请员工入舱（彭总 2026-10-23 立项：员工=舱长生成本部门二维码，APP 扫一扫入舱——闸在服务端 wbInvites.create[manager 仅本部门 staff 面]） -->
+    <div class="sec-h">邀请员工入舱</div>
+    <div style="padding:0 13px 10px">
+      <div style="display:flex;gap:6px">
+        <input id="inv-name" placeholder="员工姓名" style="flex:1;background:var(--bg,#0A101E);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--t1);font-size:12px;box-sizing:border-box">
+        <button class="btn ok" onclick="inviteStaffUi()">生成邀请码</button>
+      </div>
+      <div id="inv-out" style="display:none;margin-top:8px;text-align:center">
+        <img id="inv-qr" alt="员工入舱二维码" style="width:140px;height:140px;border-radius:10px;border:1px solid var(--line)">
+        <div id="inv-code" style="margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--t3);word-break:break-all"></div>
+        <div style="font-size:11px;color:var(--t2);margin-top:4px">员工 APP「我的 → 扫一扫」扫码即入本舱 · 72 小时有效</div>
+      </div>
+      <div id="inv-err" style="display:none;color:var(--red);font-size:11px;margin-top:6px"></div>
+    </div>
+    
+
+  </aside>
+
+  <!-- 中：协同面 -->
+  <main class="ct rv">
+    <div id="workspace-strip"></div>
+    <!-- 派活收件箱 -->
+    <div class="card">
+      <div class="card-h">主管编排单 · 真实执行状态<span class="sp"></span><span class="badge am" id="inbox-count">— 编排中</span></div>
+      <div class="inbox" id="inbox"></div>
+    </div>
+    <!-- 待审产出队列（心脏） -->
+    <div class="card">
+      <div class="card-h">待审产出队列 · 数字员工交活 → 舱长把关<span class="sp"></span><span class="badge" id="rev-count">— 待审</span></div>
+      <div class="rev-list" id="revlist"></div>
+    </div>
+    <!-- 主管编排：只保留后端真实委派，不模拟数字员工回复 -->
+    <div class="card chat">
+      <div class="card-h">主管编排派单<span class="sp"></span><span class="more" style="font-size:9px;color:var(--t3);letter-spacing:.1em">真实后端</span></div>
+      <div class="msgs2" id="msgs2"></div>
+      <div class="inp2">
+        <select id="toWho"><option value="dept">部门主管（自动分派）</option></select>
+        <input id="inp2" placeholder="说明任务，提交部门主管拆解分派">
+        <button id="send2-btn" onclick="send2()">提交</button>
+      </div>
+      <div id="dispatch-note" style="padding:6px 10px;color:var(--t3);font-size:11px">身份核验中…</div>
+    </div>
+  </main>
+
+  <!-- 右：舱态势 -->
+  <aside class="rt">
+    <div class="sec-h" style="padding-left:0">舱态势</div>
+    <div class="krow" id="krow"></div>
+    <div class="sec-h" style="padding-left:0">实时预警</div>
+    <div class="alist" id="alist"></div>
+    <div class="sec-h" style="padding-left:0">算子调用 · 本周</div>
+    <div class="card" style="flex:none"><div class="ops2" id="ops2"></div></div>
+    <div class="sec-h" style="padding-left:0">训练信号 · 纠偏回流</div>
+    <div class="siglog" id="siglog"></div>
+  </aside>
+</div>
+
+<script src="org-boot.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+/* ═══ 真数据层（W1-06 L2 接线：六面接真+降级诚实面）═══ */
+let DEPT = new URLSearchParams(location.search).get('dept') || '';
+let DEPT_STATUS = 'loading';
+let CABIN_NAME = '';
+let ME_ORG_ROLE = '';
+let ME_IS_DEPT_HEAD = false;
+let BOOT_SEQ = 0;
+let CABIN_WORKSPACE_TOKEN = null;
+let SCOPED_ERROR = '';
+const LIVE = { mode: 'loading' };
+async function api(path, input = {}) { return apiRaw(`harnessProxy.${path}`, input); }
+async function scopedApi(path, input = {}) {
+  try { return await api(path, input); }
+  catch (e) {
+    const message = String(e?.message || e);
+    const code = String(e?.code || '');
+    if (e?.status === 403 || ['forbidden', 'org_plugin_forbidden', 'org_plugin_read_denied', 'org_plugin_upstream_http_403', 'scope_denied', 'permission_denied'].includes(code)
+        || /(?:org_plugin_upstream_http_403|org_plugin_read_denied)$/.test(message)
+        || message.includes('仅可访问本人部门舱') || message.includes('部门舱不存在或已停用')) {
+      SCOPED_ERROR = 'forbidden';
+      return 'forbidden';
+    }
+    return null;
+  }
+}
+async function wbApi(path, input = {}) { return apiRaw(path, input); }
+function setBadge() { setBadgeFor(LIVE, 'CABIN'); }
+
+/* 工位列（订阅包岗位卡） */
+let CREW=[]; // 演示数据摘除[wb#135·封装前置面]——未达空态面（真数据 boot 覆写）
+let CREW_TOTAL = null;
+
+/* 派活收件箱 */
+let INBOX=[]; // 演示数据摘除[wb#135·封装前置面]——未达空态面（真数据 boot 覆写）
+let INBOX_TOTAL = null;
+
+/* 待审产出队列（心脏） */
+let REVS=[];
+let REV_TOTAL = null;
+$('#revlist').innerHTML='<div class="cempty">暂无待审产出</div>';
+
+let DISPATCHING = false;
+const DECIDING = new Set();
+function setReviewBusy(i, busy) {
+  document.querySelectorAll(`#ri${i} .ri-act button, #ri${i} .ri-act input`).forEach((el) => { el.disabled = busy; });
+}
+function canManageCabin() {
+  return ME_ORG_ROLE === 'admin';
+}
+function requireAdminAction(action) {
+  if (LIVE.mode === 'loading') { alert('身份与数据加载中，请稍后再提交'); return false; }
+  if (LIVE.mode === 'expired') { alert('未登录或会话已失效——请返回登录'); return false; }
+  if (LIVE.mode === 'demo') { alert('数据未接通——请待运行时恢复后再提交'); return false; }
+  if (DEPT_STATUS === 'loading') { alert('部门舱切换中，请等待本舱数据读回'); return false; }
+  if (DEPT_STATUS === 'unavailable') { alert('部门映射未读回——暂不提交'); return false; }
+  if (canManageCabin()) return true;
+  alert(`${action}仅企业负责人可执行；当前席只读，不会生成模拟结果`);
+  return false;
+}
+function dispatchNoteText(allowed, sel) {
+  if (LIVE.mode === 'loading') return '身份与数据加载中…';
+  if (LIVE.mode === 'expired') return '未登录或会话已失效——请返回登录后再提交主管编排';
+  if (LIVE.mode === 'demo') return '数据未接通：请待运行时恢复后再提交真实主管编排';
+  if (!allowed) return '当前席只读：主管编排与复核裁决仅企业负责人';
+  if (DEPT_STATUS === 'loading') return '部门舱切换中，请等待本舱数据读回后再提交';
+  if (DEPT_STATUS === 'unavailable') return '部门映射未读回，暂不提交';
+  if (!sel?.value) return '请选择真实部门舱后再提交主管编排';
+  if (LIVE.mode === 'live') return '负责人可提交真实主管编排；返回委派单号后由后台拆解分派，不生成模拟回复';
+  return '部分数据未读回，仍可提交真实主管编排，不生成模拟回复';
+}
+function syncDispatchAccess() {
+  const allowed = canManageCabin();
+  const input = $('#inp2'), sel = $('#toWho'), btn = $('#send2-btn'), note = $('#dispatch-note');
+  const unavailable = LIVE.mode === 'loading' || LIVE.mode === 'demo' || LIVE.mode === 'expired' || DEPT_STATUS === 'unavailable' || DEPT_STATUS === 'loading';
+  const writeDisabled = !allowed || unavailable || DISPATCHING || !sel?.value;
+  if (input) input.disabled = writeDisabled;
+  // 部门切换是只读导航，非 admin 也可在自己可见舱之间切换；只有写入控件受角色限制。
+  if (sel) sel.disabled = unavailable || DISPATCHING;
+  if (btn) btn.disabled = writeDisabled;
+  if (note) note.textContent = dispatchNoteText(allowed, sel);
+}
+$('#toWho').addEventListener('change', () => { switchCabinWorkspace($('#toWho').value); });
+
+async function send2(){
+  const v=$('#inp2').value.trim(); if(!v) return;
+  if (!requireAdminAction('主管编排')) return;
+  const targetDept=$('#toWho').value;
+  if (!targetDept) { alert('请选择真实部门舱后再提交，未使用旧舱兜底'); return; }
+  if (DISPATCHING) return;
+  DISPATCHING = true;
+  const input = $('#inp2');
+  const btn=$('#send2-btn');
+  input.disabled = true; btn.disabled=true; syncDispatchAccess();
+  try {
+    const r=await api('delegate', { dept: targetDept, task: v, idemKey: idemKeyFor(targetDept, v) });
+    const delegationId=Number(r?.delegationId||0);
+    if (!r?.ok || !delegationId) throw new Error('委派单号缺失');
+    clearIdemKey();
+    const dedupNote = r.dedup ? '（幂等复用）' : '';
+    $('#msgs2').insertAdjacentHTML('beforeend',`<div class="m2 h" id="cabin-delegation-${delegationId}"><div class="ma">单</div><div><div class="mt2">${escH(v)}</div><div class="mm2">主管编排 #${delegationId} 已受理${dedupNote}；open（后台执行中）</div></div></div>`);
+    $('#inp2').value=''; $('#msgs2').scrollTop=1e9;
+    void delegationStatusText(delegationId).then((statusText) => {
+      const el = document.getElementById(`cabin-delegation-${delegationId}`);
+      if (el) el.innerHTML = `<div class="ma">单</div><div><div class="mt2">${escH(v)}</div><div class="mm2">主管编排 #${delegationId} 已受理${dedupNote}；${escH(statusText)}</div></div></div>`;
+    });
+  } catch (e) { alert('主管编排失败：'+String(e?.message||e).slice(0,100)); }
+  finally { DISPATCHING = false; syncDispatchAccess(); }
+}
+$('#inp2').addEventListener('keydown',e=>{if(e.key==='Enter')send2();});
+
+/* 右栏 */
+let KROW=[]; // 演示数据摘除[wb#135·二批——NumX 深挖 critical③]——顶层渲染空态化
+
+let AL=[]; // 演示数据摘除[wb#135·二批]
+
+$('#ops2').innerHTML='<div class="cempty" style="color:var(--t3);font-size:11px;padding:8px">算子统计面未开（口径挂账 G4）</div>';
+let SIG=[]; // 演示信号摘除[wb#135]——真信号 boot 覆写面
+
+/* ═══ boot——六面接真（L2 接线：工位列/收件箱/待审/态势/训练信号/会话钉 dshBridge 既有面）═══ */
+function refreshCounts() {
+  if (LIVE.mode === 'loading') return;
+  $('#crew-count').textContent = CREW_TOTAL == null ? '— 数字员工' : `${CREW_TOTAL} 数字员工`;
+  $('#inbox-count').textContent = INBOX_TOTAL == null ? '— 编排中' : `${INBOX_TOTAL} 编排中`;
+  $('#rev-count').textContent = REV_TOTAL == null ? '— 待审' : `${REV_TOTAL} 待审`;
+}
+
+function renderCrew() {
+  $('#crews').innerHTML = LIVE.mode === 'loading' ? '<div class="cempty">数据加载中…</div>' : CREW.length ? CREW.map((c) => {
+    const state = ['busy', 'idle', 'wait', 'me'].includes(c[3]) ? c[3] : 'unknown';
+    const led = state === 'me' || state === 'busy' ? 'g' : state === 'wait' ? 'y' : 'dim';
+    const tg = state === 'me' ? ['me', '在席'] : state === 'busy' ? ['busy', '在办'] : state === 'wait' ? ['wait', '待审'] : state === 'idle' ? ['idle', '空闲'] : ['unknown', '状态未知'];
+    return `<div class="crew ${state === 'wait' ? 'rev-pending' : ''}">
+     <div class="cr-h"><div class="cr-av">${escH(String(c[0] ?? '').slice(0, 1))}</div><div style="flex:1;min-width:0"><div class="cr-n">${escH(c[0])}${c[2] === 'me' ? '（我）' : ''}</div><div class="cr-r">${escH(c[1])}</div></div><span class="led ${led}"></span></div>
+     <div class="cr-s"><span class="tg ${tg[0]}">${tg[1]}</span><span class="tg pkg">${escH(c[4])}</span></div>
+    </div>`; }).join('') : '<div class="cempty">暂无真实数字员工</div>';
+  refreshCounts();
+}
+
+function renderInbox() {
+  $('#inbox').innerHTML = LIVE.mode === 'loading' ? '<div class="cempty">数据加载中…</div>' : INBOX.length ? INBOX.map((x) => `
+   <div class="ib"><span class="src ${x[0]}">${x[0] === 'boss' ? '主管' : x[0] === 'boss2' ? '分舱' : '预警'}</span>
+    <div class="it"><div class="it1">${escH(x[2])}</div><div class="im">${escH(x[1])} · ${escH(x[3])}</div></div>
+    <div class="asg"><span class="done">${escH(x[4])}</span></div>
+   </div>`).join('') : '<div class="cempty">暂无编排中的真实委派单</div>';
+  refreshCounts();
+}
+
+function renderRevs() {
+  $('#revlist').innerHTML = LIVE.mode === 'loading' ? '<div class="cempty">数据加载中…</div>' : REVS.length ? REVS.map((r, i) => `
+   <div class="ritem" id="ri${i}">
+    <div class="ri-h"><span class="ri-tag ${r.tag[0]}">${escH(r.tag[1])}</span><span class="ri-who">${escH(r.who)}</span><span class="ri-when">${escH(r.when)}</span></div>
+    <div class="ri-t">${escH(r.t)}</div>
+    <div class="ri-d">${escH(r.d)}</div>
+    <div class="ri-act">
+      ${r.arts && r.arts.length ? `<button class="btn dl" onclick="dlArt(${i})" style="border-color:var(--cyan);color:var(--cyan)">⬇ 取件（${r.arts.length}）</button>` : ''}
+      <button class="btn ok" ${canManageCabin() ? '' : 'disabled'} onclick="passR(${i})">✓ 通过入库</button>
+      <button class="btn no" ${canManageCabin() ? '' : 'disabled'} onclick="rejR(${i})">↩ 打回重做</button>
+      <div class="ri-note" id="note${i}" style="display:none"><input id="note-inp-${i}" placeholder="打回批注（=训练信号回流数字员工）…"></div>
+    </div>
+    <div class="sig" id="sig${i}">⚡ 批注将回流「${escH(r.who.split('·')[0])}」训练面——下次同类产出自动对齐</div>
+   </div>`).join('') : '<div class="cempty">暂无待审产出</div>';
+  refreshCounts();
+}
+
+// O3 取件：fetch Bearer 鉴权（token 不落 URL——wb#128 泄面同律不回潮）→blob→本地下载
+async function dlArt(i) {
+  const r = REVS[i];
+  if (!r.arts || !r.arts.length) return;
+  for (const a of r.arts) {
+    const slash = a.indexOf('/');
+    if (slash <= 0 || slash >= a.length - 1) { alert('取件标识不完整'); continue; }
+    const station = a.slice(0, slash), name = a.slice(slash + 1);
+    try {
+      const resp = await fetch(`${BINARY_API_BASE}/org-artifact?station=${encodeURIComponent(station)}&name=${encodeURIComponent(name)}`, { headers: { authorization: 'Bearer ' + TOKEN }, signal: timeoutSignal(60000) });
+      if (!resp.ok) { alert('取件失败：' + resp.status); continue; }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { alert('取件失败：' + String(e?.message || e).slice(0, 60)); }
+  }
+}
+async function passR(i) {
+  if (!requireAdminAction('复核裁决')) return;
+  const r = REVS[i];
+  if (!r || r.decided || DECIDING.has(r.rid)) return;
+  const bootAtStart = BOOT_SEQ;
+  DECIDING.add(r.rid); setReviewBusy(i, true); syncDispatchAccess();
+  try {
+    await api('reviewDecide', { reviewId: r.rid, decision: 'approved' });
+    if (BOOT_SEQ === bootAtStart) {
+      r.decided = true;
+      r.status = 'approved';
+      if (REV_TOTAL != null) REV_TOTAL = Math.max(0, REV_TOTAL - 1);
+      const el = document.getElementById('ri' + i);
+      if (el) {
+        el.style.opacity = '.38';
+        el.querySelector('.ri-act').innerHTML = '<span style="font-family:var(--mono);font-size:9.5px;color:var(--mint)">✓ 已通过入库·产出归档（复核岗同步挂签）</span>';
+      }
+    }
+  } catch (e) { alert('审批失败：' + String(e?.message || e).slice(0, 80)); }
+  finally { DECIDING.delete(r.rid); if (BOOT_SEQ === bootAtStart && !r.decided) setReviewBusy(i, false); refreshCounts(); syncDispatchAccess(); }
+}
+window.passR = passR;
+function rejR(i) {
+  if (!requireAdminAction('复核裁决')) return;
+  const r = REVS[i];
+  if (!r || r.decided || DECIDING.has(r.rid)) return;
+  const n = document.getElementById('note' + i);
+  if (n.style.display === 'none') { n.style.display = 'block'; document.getElementById('sig' + i).style.display = 'block'; return; }
+  const v = document.getElementById('note-inp-' + i).value.trim();
+  if (!v) return;
+  const bootAtStart = BOOT_SEQ;
+  DECIDING.add(r.rid); setReviewBusy(i, true); syncDispatchAccess();
+  (async () => {
+    try {
+      await api('reviewDecide', { reviewId: r.rid, decision: 'rejected', note: v });
+      if (BOOT_SEQ === bootAtStart) {
+        r.decided = true;
+        r.status = 'rejected';
+        if (REV_TOTAL != null) REV_TOTAL = Math.max(0, REV_TOTAL - 1);
+        const el = document.getElementById('ri' + i);
+        if (el) {
+          el.style.opacity = '.38';
+          el.querySelector('.ri-act').innerHTML = `<span style="font-family:var(--mono);font-size:9.5px;color:var(--red)">↩ 已打回（批注已回流训练面）</span>`;
+        }
+      }
+    } catch (e) { alert('打回失败：' + String(e?.message || e).slice(0, 80)); }
+    finally { DECIDING.delete(r.rid); if (BOOT_SEQ === bootAtStart && !r.decided) setReviewBusy(i, false); refreshCounts(); syncDispatchAccess(); }
+  })();
+}
+window.rejR = rejR;
+
+
+// ═══ W3-02 推送三通铃铛（出站队列真源——30s 轮询+裁决联动已读[harness 面]；未达静默不装） ═══
+// 邀请员工面（彭总 2026-10-23 立项 B 票）：deptId=identityMe 本部门钉（manager 服务端闸=仅本部门 staff；admin 进舱屏同面可用——直通闸在服务端）
+let ME_DEPT_ID = '';
+let INVITING = false;
+function resetInviteQr() {
+  const img = document.getElementById('inv-qr');
+  if (!img) return;
+  if (img.dataset.objectUrl) URL.revokeObjectURL(img.dataset.objectUrl);
+  delete img.dataset.objectUrl;
+  img.removeAttribute('src');
+  img.onerror = null;
+}
+async function inviteStaffUi() {
+  if (INVITING) return;
+  const name = document.getElementById('inv-name').value.trim();
+  const err = document.getElementById('inv-err');
+  const out = document.getElementById('inv-out');
+  if (!name) { err.textContent = '填员工姓名'; err.style.display = 'block'; return; }
+  out.style.display = 'none';
+  resetInviteQr();
+  INVITING = true;
+  try {
+    if (!ME_DEPT_ID) {
+      const me = await api('identityMe');
+      ME_DEPT_ID = me.deptId || '';
+    }
+    if (!ME_DEPT_ID) { err.textContent = '你的部门归属未明——先让负责人给你落部门'; err.style.display = 'block'; return; }
+    const r = await wbApi('wbInvites.create', { displayName: name, deptId: ME_DEPT_ID, role: 'staff' });
+    if (r?.code) {
+      document.getElementById('inv-code').textContent = r.code;
+      out.style.display = ''; err.style.display = 'none';
+      document.getElementById('inv-name').value = '';
+      try {
+        resetInviteQr();
+        const qrResponse = await fetch(`${BINARY_API_BASE}/invite-qr?code=${encodeURIComponent(r.code)}`, {
+          signal: timeoutSignal(15000),
+        });
+        if (!qrResponse.ok) throw new Error(`invite_qr_${qrResponse.status}`);
+        const blob = await qrResponse.blob();
+        const qr = document.getElementById('inv-qr');
+        const nextObjectUrl = URL.createObjectURL(blob);
+        if (qr.dataset.objectUrl) URL.revokeObjectURL(qr.dataset.objectUrl);
+        qr.dataset.objectUrl = nextObjectUrl;
+        qr.src = nextObjectUrl;
+      } catch {
+        resetInviteQr();
+        const qrFallback = document.getElementById('inv-qr');
+        qrFallback.src = `${BINARY_API_BASE}/invite-qr?code=${encodeURIComponent(r.code)}`;
+        qrFallback.onerror = () => { resetInviteQr(); };
+        err.textContent = '邀请码已生成且有效；二维码未达时请直接使用邀请码'; err.style.display = 'block';
+      }
+    } else { out.style.display = 'none'; resetInviteQr(); err.textContent = '生成未达——稍后重试'; err.style.display = 'block'; }
+  } catch (e) { err.textContent = String(e?.message || e).slice(0, 80); err.style.display = 'block'; }
+  finally { INVITING = false; }
+}
+
+function switchCabinWorkspace(code) {
+  const picked = String(code || '');
+  const selector = $('#toWho');
+  const hasOption = !selector || Array.from(selector.options || []).some((option) => option.value === picked);
+  if (!picked || picked === DEPT) {
+    if (selector) selector.value = DEPT;
+    if (picked && DEPT_STATUS !== 'ready' && DEPT_STATUS !== 'loading' && !DISPATCHING) {
+      DEPT_STATUS = 'loading';
+      LIVE.mode = 'loading';
+      paintWorkspaceStrip();
+      void bootCabin();
+    }
+    syncDispatchAccess();
+    return;
+  }
+  if (DEPT_STATUS === 'loading') {
+    if (selector) selector.value = DEPT;
+    syncDispatchAccess();
+    return;
+  }
+  if (DISPATCHING) {
+    if (selector) selector.value = DEPT;
+    syncDispatchAccess();
+    alert('当前有在飞写操作，请完成后再切换部门舱');
+    return;
+  }
+  if (picked && !hasOption) {
+    if (selector) selector.value = DEPT;
+    const known = Array.isArray(WORKSPACE_DIRECTORY?.cabins) && WORKSPACE_DIRECTORY.cabins.some((row) => row.cabinCode === picked);
+    if (known) { navigateOrgView('cabin', `dept=${encodeURIComponent(picked)}`); return; }
+    syncDispatchAccess();
+    alert('部门映射未读回，暂不能进入该舱；请先恢复真实部门映射');
+    return;
+  }
+  if (selector) selector.value = picked;
+  DEPT = picked;
+  NOTICE_DEPT = picked;
+  invalidateNoticePoll();
+  DEPT_STATUS = 'loading';
+  LIVE.mode = 'loading';
+  paintWorkspaceStrip();
+  SCOPED_ERROR = '';
+  CABIN_NAME = selector?.selectedOptions[0]?.textContent || picked;
+  NOTICE_IDS = [];
+  $('#nbadge').textContent = '';
+  $('#nbadge').style.display = 'none';
+  $('#msgs2').innerHTML = '';
+  $('#inp2').value = '';
+  clearIdemKey();
+  $('#cabin-sub').textContent = `部门 ${CABIN_NAME} · 正在切换并读取真实数据`;
+  CREW = []; INBOX = []; REVS = []; SIG = []; KROW = []; AL = [];
+  CREW_TOTAL = null; INBOX_TOTAL = null; REV_TOTAL = null;
+  $('#crew-count').textContent = '— 数字员工';
+  $('#inbox-count').textContent = '— 编排中';
+  $('#rev-count').textContent = '— 待审';
+  const switching = '<div class="cempty">部门舱切换中，正在读取真实数据…</div>';
+  $('#siglog').innerHTML = switching;
+  $('#krow').innerHTML = switching;
+  $('#alist').innerHTML = switching;
+  $('#nbox').innerHTML = '<div class="nact"><span>组织通知</span></div><div class="ni"><div class="nb">部门舱切换中，通知读取中…</div></div>';
+  renderCrew(); renderInbox(); renderRevs();
+  setBadge();
+  void pollNotices();
+  void bootCabin();
+  syncDispatchAccess();
+}
+
+function resetCabinDegraded(reason, sessionExpired = false, error) {
+  LIVE.mode = sessionExpired ? 'expired' : 'demo';
+  DEPT_STATUS = 'unavailable';
+  ME_ORG_ROLE = '';
+  ME_IS_DEPT_HEAD = false;
+  CABIN_NAME = '';
+  if (WORKSPACE_DIRECTORY === undefined) failWorkspaceDirectory(error ?? reason);
+  paintWorkspaceStrip();
+  CREW = []; INBOX = []; REVS = []; SIG = []; KROW = []; AL = [];
+  CREW_TOTAL = null; INBOX_TOTAL = null; REV_TOTAL = null;
+  NOTICE_IDS = [];
+  $('#crew-count').textContent = '— 数字员工'; $('#inbox-count').textContent = '— 编排中'; $('#rev-count').textContent = '— 待审';
+  $('#cabin-head-name').textContent = sessionExpired ? '未登录' : '舱长';
+  $('#cabin-sub').innerHTML = sessionExpired ? `${escH(reason)} · <a href="index.html" style="color:var(--cyan)">返回登录</a>` : escH(reason);
+  $('#toWho').innerHTML = `<option value="">${escH(reason)}</option>`;
+  $('#nbadge').textContent = ''; $('#nbadge').style.display = 'none';
+  $('#nbox').innerHTML = `<div class="nact"><span>组织通知</span></div><div class="ni"><div class="nb">${escH(reason)}</div></div>`;
+  $('#crews').innerHTML = `<div class="cempty">数字员工未读回（${escH(reason)}）</div>`;
+  $('#inbox').innerHTML = `<div class="cempty">派活收件箱未读回（${escH(reason)}）</div>`;
+  $('#revlist').innerHTML = `<div class="cempty">待审产出未读回（${escH(reason)}）</div>`;
+  $('#siglog').innerHTML = `<div class="cempty">训练信号未读回（${escH(reason)}）</div>`;
+  $('#krow').innerHTML = `<div class="cempty">舱负载未读回（${escH(reason)}）</div>`;
+  $('#alist').innerHTML = `<div class="cempty">健康预警未读回（${escH(reason)}）</div>`;
+  bellDegraded();
+  syncDispatchAccess();
+  setBadge();
+}
+
+async function bootCabin() {
+  const workspaceTokenChanged = CABIN_WORKSPACE_TOKEN !== TOKEN;
+  if (workspaceTokenChanged) {
+    resetWorkspaceDirectory();
+    CABIN_WORKSPACE_TOKEN = TOKEN;
+  }
+
+
+  if (!TOKEN) { resetCabinDegraded('未登录或会话已失效', true); return; }
+  const bootSeq = ++BOOT_SEQ;
+  SCOPED_ERROR = '';
+  setBadge();
+  try {
+    await api('healthz');
+    const rawMe = await api('identityMe').catch(() => null);
+    persistQueryToken(rawMe);
+    const me = rawMe || {};
+    ME_ORG_ROLE = me.orgRole || '';
+    ME_IS_DEPT_HEAD = me.isDeptHead === true;
+    const workspaceResult = WORKSPACE_DIRECTORY === undefined || WORKSPACE_DIRECTORY === null ? loadWorkspaceDirectory() : Promise.resolve(WORKSPACE_DIRECTORY);
+    const cabinMap = await wbApi('entCabin.map').catch(() => null);
+    if (bootSeq !== BOOT_SEQ) return;
+    const requestedDept = DEPT;
+    const cabins = Array.isArray(cabinMap?.cabins) ? cabinMap.cabins : null;
+    if (!rawMe) {
+      DEPT = '';
+      DEPT_STATUS = 'unavailable';
+      CABIN_NAME = '';
+      $('#toWho').innerHTML = '<option value="">身份未读回</option>';
+    } else if (cabins) {
+      const ownTarget = cabins.find(c => !!me.deptId && (c.departmentId === me.deptId || c.code === me.deptId));
+      const requestedTarget = requestedDept ? cabins.find(c => c.departmentId === requestedDept || c.code === requestedDept) : null;
+      const target = requestedDept ? requestedTarget : (ownTarget || (cabins.length === 1 ? cabins[0] : null));
+      DEPT = target?.code || '';
+      NOTICE_DEPT = DEPT;
+      if (target) DEPT_STATUS = 'ready';
+      else if (requestedDept && !requestedTarget) DEPT_STATUS = 'forbidden';
+      else DEPT_STATUS = 'unmapped';
+      CABIN_NAME = target?.name || '';
+      $('#toWho').innerHTML = '<option value="">请选择部门舱</option>' + cabins.map(c => `<option value="${escH(c.code)}">${escH(c.name)}</option>`).join('');
+      $('#toWho').value = DEPT;
+    } else {
+      DEPT = '';
+      DEPT_STATUS = 'unavailable';
+      CABIN_NAME = '';
+      $('#toWho').innerHTML = '<option value="">部门映射未读回</option>';
+    }
+    void workspaceResult.then(() => { paintWorkspaceStrip(); });
+    const scopeReady = DEPT_STATUS === 'ready';
+    const [emps, dels, revs, samples, load, health] = await Promise.all([
+      scopeReady ? scopedApi('employees', { dept: DEPT, limit: 50 }) : null,
+      scopeReady ? scopedApi('delegations', { status: 'open', dept: DEPT, limit: 20 }) : null,
+      scopeReady ? scopedApi('reviews', { status: 'pending', dept: DEPT, limit: 20 }) : null,
+      scopeReady ? scopedApi('feedbackSamples', { dept: DEPT }) : null,
+      scopeReady ? scopedApi('load', { dept: DEPT }) : null,
+      scopeReady ? scopedApi('cabinHealth', { dept: DEPT }) : null,
+    ]);
+    if (bootSeq !== BOOT_SEQ) return;
+    ME_DEPT_ID = me.deptId || '';
+    let deptLabel = CABIN_NAME || DEPT;
+    if (DEPT_STATUS === 'forbidden') deptLabel = '不可用或无权查看';
+    else if (!deptLabel) deptLabel = DEPT_STATUS === 'unavailable' ? '映射未读回' : '未映射';
+    $('#cabin-head-name').textContent = me.displayName || me.username || '舱长';
+    $('#cabin-sub').textContent = `部门 ${deptLabel} · ${ME_ORG_ROLE === 'admin' ? '企业负责人' : ME_IS_DEPT_HEAD ? '本舱舱长' : '部门席只读'}`;
+    syncDispatchAccess();
+    if (scopeReady) startNoticeLoop();
+    else {
+      bellDegraded();
+      $('#bell').title = DEPT_STATUS === 'unmapped' ? '部门未映射：通知按部门隔离' : '部门映射未读回（API 未达）';
+    }
+
+    const deptLoad = load?.items || [];
+    const queueByStation = new Map();
+    deptLoad.forEach((s) => {
+      const key = String(s.stationKey ?? s.station_key ?? '');
+      if (key) queueByStation.set(key, Number(s.queueDepth ?? s.queue_depth));
+    });
+    const stationState = (stationKey) => {
+      if (!stationKey || !queueByStation.has(stationKey)) return 'unknown';
+      const q = queueByStation.get(stationKey);
+      return Number.isFinite(q) && q >= 0 ? (q > 0 ? 'busy' : 'idle') : 'unknown';
+    };
+    if (emps?.items) {
+      const employees = emps.items;
+      CREW_TOTAL = Number(emps.count ?? employees.length);
+      const meRow = [me.displayName || me.username || '舱长', ME_ORG_ROLE === 'admin' ? '企业负责人' : '部门负责人', 'me', 'me', '本舱'];
+      CREW = [meRow, ...employees.map((e) => {
+        const stationKey = String(e.stationKey ?? e.station_key ?? '');
+        return [e.name, e.skill ? `${e.skill}` : '数字员工', 'ai', stationState(stationKey), `岗位包·${e.dept || '通用'}`];
+      })];
+    } else { CREW = []; CREW_TOTAL = null; }
+    if (dels?.items) {
+      // 服务端已按真实舱与 open 状态收敛；不再用另一命名空间的 org_key 二次清空合法行。
+      const inboxRows = dels.items;
+      INBOX_TOTAL = Number(dels.total ?? inboxRows.length);
+      INBOX = inboxRows.slice(0, 5).map((d) => ['boss', d.chief_station || '部门主管', d.parent_task_head || d.task_head || d.parent_task || d.task || d.title || '任务摘要未读回', (d.created_at || '').slice(11, 16), `#${d.id} · 编排中`]);
+    } else { INBOX = []; INBOX_TOTAL = null; }
+    if (revs?.items) {
+      REV_TOTAL = Number(revs.count ?? revs.items.length);
+      REVS = revs.items.map((r) => ({
+        rid: r.review_id,
+        tag: [r.item_type === 'rpt' ? 'rpt' : r.item_type === 'warn' ? 'warn' : 'doc', { rpt: '质检报告', doc: '工艺卡', warn: '异常处置', plan: '排产草案', other: '产出件' }[r.item_type] || '产出件'],
+        who: `${r.station_key || '数字员工'}`, when: (r.created_at || '').slice(0, 16), t: r.title || '', d: (r.summary || '').slice(0, 200),
+        arts: r.payload_uri ? String(r.payload_uri).split(' ').filter(Boolean) : [],
+      }));
+    } else { REVS = []; REV_TOTAL = null; }
+    if (samples?.items) {
+      // 样本已在服务端按部门+员工/主管工位收敛，不再用另一响应的工位键二次清空。
+      SIG = samples.items.slice(0, 4).map((x) => [(x.created_at || '').slice(5, 10), `<b>${escH(x.station_key || '数字员工')}</b> ${escH(x.task_digest || x.sample_kind || '')}（${escH(x.source || '回流')}）`]);
+    } else SIG = [];
+
+    if (load?.items) {
+      const totalQueue = deptLoad.reduce((sum, s) => {
+        const q = Number(s.queueDepth ?? s.queue_depth);
+        return sum + (Number.isFinite(q) && q >= 0 ? q : 0);
+      }, 0);
+      const avgQueue = deptLoad.length ? Math.round((totalQueue / deptLoad.length) * 100) / 100 : 0;
+      KROW = [['工位', deptLoad.length, ''], ['在办', totalQueue, '单'], ['平均队列', avgQueue, '单']];
+    } else KROW = [];
+    const healthRows = health?.items || [];
+    AL = healthRows.filter(h => h.score != null && Number.isFinite(Number(h.score))).map(h => [Number(h.score) < 65 ? 'cr' : Number(h.score) < 90 ? 'wr' : 'ok', `健康 ${Number(h.score)}`, '真实健康环']);
+
+    const sources = [cabinMap, emps, dels, revs, samples, load, health];
+    const reached = sources.filter(v => v && typeof v === 'object' && (v.ok === undefined || v.ok === true)).length;
+    if (!rawMe || reached === 0) LIVE.mode = 'demo';
+    else if (scopeReady && reached === sources.length) LIVE.mode = 'live';
+    else LIVE.mode = 'partial';
+    renderCrew(); renderInbox(); renderRevs();
+    let scopeMessage = '部门映射未读回（API 未达）';
+    if (SCOPED_ERROR === 'forbidden') scopeMessage = '无权访问本舱或部门映射缺失';
+    else if (DEPT_STATUS === 'forbidden') scopeMessage = '部门不存在、未映射或无权查看：未读取其他部门数据';
+    else if (DEPT_STATUS === 'unmapped') scopeMessage = '部门未映射：请选择真实部门舱，未显示其他部门数据';
+    const scopeBlocked = !scopeReady || SCOPED_ERROR === 'forbidden';
+    if (scopeBlocked) {
+      $('#crews').innerHTML = `<div class="cempty">${scopeMessage}</div>`;
+      $('#inbox').innerHTML = `<div class="cempty">${scopeMessage}</div>`;
+      $('#revlist').innerHTML = `<div class="cempty">${scopeMessage}</div>`;
+    } else {
+      if (!emps) $('#crews').innerHTML = '<div class="cempty">数字员工未读回（API 未达）</div>';
+      if (!dels) $('#inbox').innerHTML = '<div class="cempty">主管编排单未读回（API 未达）</div>';
+      if (!revs) $('#revlist').innerHTML = '<div class="cempty">待审产出未读回（API 未达）</div>';
+    }
+    $('#siglog').innerHTML = scopeBlocked
+      ? `<div class="cempty">${scopeMessage}</div>`
+      : samples
+        ? (SIG.length ? SIG.map(x => `<div class="sl-i"><span class="st2">${escH(x[0])}</span><span class="sx">${x[1]}</span></div>`).join('') : load?.items ? '<div class="cempty">暂无本部门真实训练信号</div>' : '<div class="cempty">训练信号的部门归属未读回（负载 API 未达）</div>')
+        : '<div class="cempty">训练信号未读回（API 未达）</div>';
+    $('#krow').innerHTML = scopeBlocked
+      ? `<div class="cempty">${scopeMessage}</div>`
+      : load
+        ? (KROW.length ? KROW.map(k => `<div class="kc"><div class="kl">${k[0]}</div><div class="kv">${k[1]}<small>${k[2]}</small></div></div>`).join('') : '<div class="cempty">暂无真实负载</div>')
+        : '<div class="cempty">舱负载未读回（API 未达）</div>';
+    $('#alist').innerHTML = scopeBlocked
+      ? `<div class="cempty">${scopeMessage}</div>`
+      : health
+        ? (AL.length ? AL.map(a => `<div class="al"><span class="sev2 ${a[0]}"></span><span class="at">${a[1]}</span><span class="am">${a[2]}</span></div>`).join('') : '<div class="cempty">暂无真实预警</div>')
+        : '<div class="cempty">健康预警未读回（API 未达）</div>';
+
+    syncDispatchAccess();
+    setBadge();
+  } catch (e) {
+    if (bootSeq !== BOOT_SEQ) return;
+    resetCabinDegraded('数据未接通（API 未达）', false, e);
+  }
+}
+// 初始空态渲染，真实数据到达后覆盖
+renderCrew(); renderInbox(); renderRevs();
+void bootCabin();
+setInterval(()=>{const d=new Date();$('#clock').textContent=d.toTimeString().slice(0,8);},1000);
+</script>
+</body>
+</html>
