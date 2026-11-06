@@ -47,7 +47,9 @@ function runRestore(f: ReturnType<typeof fixture>, extra: Record<string, string>
 }
 afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
 
-describe("发布制品恢复", () => {
+const HAS_ROOT = typeof process.getuid === "function" && process.getuid() === 0;
+
+describe.skipIf(!HAS_ROOT)("发布制品恢复（root-only；公开 CI 另有特权复跑）", () => {
   it("全部哈希验讫后双目录恢复，清单最后生效且权限正确", () => {
     const f = fixture();
     fs.writeFileSync(path.join(f.dst, "app-release.json"), metadata("2.9.65"));

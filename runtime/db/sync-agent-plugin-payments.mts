@@ -11,6 +11,7 @@ const ensureColumn = async (table: string, column: string, definition: string) =
 }
 await ensureColumn('st_agent_plugin_packages', 'price_cents', "INT NOT NULL DEFAULT 0 COMMENT '订阅价格（分），服务端定价，不接受客户端金额' AFTER description")
 await ensureColumn('st_agent_plugin_packages', 'duration_days', "INT NOT NULL DEFAULT 30 COMMENT '订阅有效天数' AFTER price_cents")
+await ensureColumn('st_agent_plugin_payment_orders', 'order_cycle', 'INT NOT NULL DEFAULT 1 AFTER duration_days')
 await ensureColumn('st_agent_plugin_entitlements', 'payment_order_no', 'VARCHAR(64) NULL AFTER factory_id')
 await conn.query(`CREATE TABLE IF NOT EXISTS st_agent_plugin_payment_orders (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -20,6 +21,7 @@ await conn.query(`CREATE TABLE IF NOT EXISTS st_agent_plugin_payment_orders (
   factory_id BIGINT UNSIGNED NOT NULL,
   amount_cents INT NOT NULL,
   duration_days INT NOT NULL,
+  order_cycle INT NOT NULL DEFAULT 1,
   channel VARCHAR(16) NOT NULL DEFAULT 'wechat',
   status VARCHAR(24) NOT NULL DEFAULT 'pending',
   out_trade_no VARCHAR(64) NOT NULL,

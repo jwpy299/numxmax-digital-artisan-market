@@ -5,7 +5,7 @@
  *  ③ 诚实面钉：cleanup 写了机制名的表，机制必须在代码里真实存在（宣称=实现——写 none 不扣分，写机制必须有其物）。
  */
 import { describe, expect, it } from "vitest";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { DATA_LIFECYCLE } from "@contracts/dataLifecycle";
 
 /** 递归收 api/ 下全部 .ts（跳测试件）→ [路径, 文本] 对 */
@@ -25,7 +25,8 @@ function collectSources(apiDir: URL): Array<[string, string]> {
 
 const OWN = collectSources(new URL("./", import.meta.url));
 const WB_SYNC_BASE = process.env.WB_SYNC_BASE ?? "../../wb";
-const OTHER = collectSources(new URL(`${WB_SYNC_BASE}/api/`, import.meta.url));
+const HAS_WB_SYNC = existsSync(new URL(`${WB_SYNC_BASE}/api/`, import.meta.url));
+const OTHER = HAS_WB_SYNC ? collectSources(new URL(`${WB_SYNC_BASE}/api/`, import.meta.url)) : [];
 const ALL_SRC = [...OWN, ...OTHER];
 const tableSet = (srcs: Array<[string, string]>) => {
   const s = new Set<string>();
@@ -36,7 +37,7 @@ const OWN_TABLES = tableSet(OWN);
 const ALL_TABLES = tableSet(ALL_SRC);
 const LEDGER = new Set(DATA_LIFECYCLE.map((r) => r.table));
 
-describe("数据生命周期台账闸（契约②）", () => {
+describe.skipIf(!HAS_WB_SYNC)("数据生命周期台账闸（契约②）", () => {
   it("① 新表闸：本仓 DDL 每表必在台账（缺=红——新表票必填保留期面）", () => {
     const missing = [...OWN_TABLES].filter((t) => !LEDGER.has(t));
     expect(missing, `未登记台账的表：${missing.join(", ")}——新表票必须先在 contracts/dataLifecycle.ts 登记保留期`).toEqual([]);

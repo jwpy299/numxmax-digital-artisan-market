@@ -1,6 +1,6 @@
 # NumX Max · Digital Artisan Market
 
-组织智能运行时、桌面端与 PKX 订阅插件的开源候选快照。
+组织智能运行时、桌面端与 PKX 订阅插件的开源快照。
 
 ## 范围
 - `runtime/`：OAP v0、lease/outbox/checkpoint/evidence/revoke/version、前端与后端。
@@ -16,6 +16,8 @@ npm run check
 npm run build
 npm test
 ```
+
+公开环境的 skip 清单与 root-only 特权复跑见 [`docs/INTERNAL-GATES.md`](docs/INTERNAL-GATES.md)。
 
 ## 明确边界
 - 本快照不包含生产密钥、商户配置、用户数据、内部地址或生产部署状态。

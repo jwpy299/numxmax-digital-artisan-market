@@ -12,7 +12,9 @@ afterEach(() => {
 
 })
 
-describe('发布文件锁', () => {
+const HAS_ROOT = typeof process.getuid === 'function' && process.getuid() === 0
+
+describe.skipIf(!HAS_ROOT)('发布文件锁（root-only；公开 CI 另有特权复跑）', () => {
   it('同一文件锁只允许一个发布方，释放后可重入', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'release-file-lock-'))
     roots.push(root)
