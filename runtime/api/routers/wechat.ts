@@ -28,8 +28,8 @@ const WECHAT_TABLES_HINT =
 
 export const WECHAT_CALLBACK_PATH = "/api/wechat/callback";
 
-const PORTAL_URL = "https://example.invalid:3100";
-const WORKBENCH_URL = "https://wb.example.invalid:3000";
+const PORTAL_URL = "https://lingshu-nebulaai.com:3100";
+const WORKBENCH_URL = "https://wb.lingshu-nebulaai.com:3000";
 
 export const DEFAULT_WELCOME =
   "欢迎关注广东灵智枢生态科技有限公司！我是智能客服，可以为您介绍「NumX Max·数字匠市」（数字员工雇佣/招聘，Token 按调用计量结算）与「NumX Max 智能工作台」（企业账号组织/部门/数字员工管理）。直接输入您的问题即可。";

@@ -266,7 +266,7 @@ describe("normalizeEndpoint SSRF 闸", () => {
     expect(() => normalizeEndpoint("169.254.169.254/latest/meta-data")).toThrowError(/元数据/);
   });
   it("本系统三端 IP 拒绝", () => {
-    expect(() => normalizeEndpoint("192.0.2.11:3000")).toThrowError(/自身/);
+    expect(() => normalizeEndpoint("112.93.116.69:3000")).toThrowError(/自身/);
   });
   it("非 http scheme / 带凭据拒绝；裸地址补 http", () => {
     expect(() => normalizeEndpoint("ftp://10.0.0.1")).toThrowError(/http/);

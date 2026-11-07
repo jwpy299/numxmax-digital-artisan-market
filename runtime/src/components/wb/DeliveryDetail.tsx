@@ -59,7 +59,8 @@ export function DeliveryDetail({
   const loginHref = ADMIN_ONLY ? ADMIN_LOGIN_PATH : LOGIN_PATH;
   const [retryToken, setRetryToken] = useState(0);
   const [state, setState] = useState<DeliveryState>({ status: "idle" });
-  const credential = useWbSessionRevision();
+  const sessionRevision = useWbSessionRevision()
+  const credential = `${sessionRevision}:${session?.token ?? ''}`;
   const { requestKey, serializationFailed } = useMemo(() => {
     try {
       return {
@@ -152,6 +153,7 @@ export function DeliveryDetail({
       cancelled = true;
       controller.abort();
     };
+    // credential 同时绑定 revision 与 token；revision 未变但 token 改变也必须重新鉴权。
     // 请求只由 open/requestKey/credential 驱动；ready/error 状态变化本身不得再次触发请求。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, requestKey, credential, retryToken, serializationFailed]);

@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { getDb } from '../queries/connection'
 import { rawRows } from '../queries/rawRows'
-import { runRuntimeWatchdogMysqlOnce } from './runtimeWatchdogMysql'
+import { readRuntimeWatchdogSnapshots, runRuntimeWatchdogMysqlOnce } from './runtimeWatchdogMysql'
 
 const enabled = process.env.AGENT_EMPLOYMENT_MYSQL_TEST === '1'
 const db = enabled ? getDb() : (undefined as unknown as ReturnType<typeof getDb>)
@@ -36,4 +36,37 @@ describe('runtime Watchdog 真实只读扫描', () => {
     expect(Number(rawRows(await db.execute(sql`SELECT COUNT(*) AS n FROM st_runtime_outbox_claims`))[0].n)).toBe(claimsBefore)
     expect(Number(rawRows(await db.execute(sql`SELECT COUNT(*) AS n FROM st_runtime_execution_evidence`))[0].n)).toBe(executionBefore)
   })
+  it('按 lease_id 游标有界分页，索引与 ISO 心跳均可复核', async () => {
+    if (!enabled) return
+    const first = await readRuntimeWatchdogSnapshots(db, tenantId, '', 1)
+    expect(first).toHaveLength(1)
+    expect(first[0].lease.leaseId).toBe(`${tenantId}-healthy`)
+    expect(first[0].lastHeartbeatAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+    const second = await readRuntimeWatchdogSnapshots(db, tenantId, first[0].lease.leaseId, 1)
+    expect(second).toHaveLength(1)
+    expect(second[0].lease.leaseId).toBe(`${tenantId}-revoked`)
+    const third = await readRuntimeWatchdogSnapshots(db, tenantId, second[0].lease.leaseId, 1)
+    expect(third).toHaveLength(1)
+    expect(third[0].lease.leaseId).toBe(`${tenantId}-stuck`)
+    expect(await readRuntimeWatchdogSnapshots(db, tenantId, third[0].lease.leaseId, 1)).toHaveLength(0)
+    const indexes = rawRows(await db.execute(sql`SELECT INDEX_NAME AS indexName FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='st_runtime_leases' AND index_name='idx_runtime_lease_tenant_lease'`))
+    expect(indexes).toHaveLength(2)
+    const evidence = await runRuntimeWatchdogMysqlOnce({ db, tenantId, now: '2026-11-05T01:00:00Z', heartbeatTimeoutMs: 1000, batchSize: 1 })
+    expect(evidence.map((item) => item.classification)).toEqual(['lease_revoked', 'stuck'])
+  })
+
+  it('未知 lease 状态显式报错，不伪造 stuck 证据', async () => {
+    if (!enabled) return
+    const badTenant = `${tenantId}-bad-status`
+    await db.execute(sql`INSERT INTO st_runtime_leases
+      (lease_id, tenant_id, factory_id, department_id, task_id, lease_epoch, worker_id, status, expires_at, last_heartbeat_at)
+      VALUES (${badTenant}, ${badTenant}, 1, 'dept-a', 11, 1, 'worker-a', 'pending', DATE_ADD(NOW(), INTERVAL 1 HOUR), '2026-11-05 00:58:00')`)
+    try {
+      await expect(readRuntimeWatchdogSnapshots(db, badTenant)).rejects.toThrow('runtime_watchdog_lease_status_invalid')
+      await expect(runRuntimeWatchdogMysqlOnce({ db, tenantId: badTenant, now: '2026-11-05T01:00:00Z', heartbeatTimeoutMs: 1000 })).rejects.toThrow('runtime_watchdog_lease_status_invalid')
+    } finally {
+      await db.execute(sql`DELETE FROM st_runtime_leases WHERE tenant_id=${badTenant}`)
+    }
+  })
+
 })

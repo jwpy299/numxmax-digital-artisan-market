@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import {
   clearWbSession,
   saveWbSession,
   useWbQuery,
+  useWbSession,
   type WbSession,
 } from "./wbSession";
 import { NEBULA_AUTH_STORAGE_KEY } from "@/config/workbench";
@@ -88,6 +89,14 @@ describe("wbSession 查询与广播边界", () => {
     );
     window.removeEventListener("wb-session-changed", listener);
   });
+  it("订阅者异常不会误删已保存会话或把保存判为失败", () => {
+    vi.spyOn(window, "dispatchEvent").mockImplementation(() => {
+      throw new Error("subscriber");
+    });
+    expect(saveWbSession(session)).toEqual({ ok: true });
+    expect(localStorage.getItem(NEBULA_AUTH_STORAGE_KEY)).toContain("test-session-token");
+  });
+
   it("replaceData 后旧请求不得覆盖新快照", async () => {
     let resolveOld: ((value: Response) => void) | undefined;
     fetchMock.mockImplementationOnce(
@@ -116,6 +125,19 @@ describe("wbSession 查询与广播边界", () => {
     clearWbSession();
     expect(localStorage.getItem(NEBULA_AUTH_STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem("nebula_auth_revision")).not.toBe(before);
+  });
+
+  it("removeItem 失败仍强制内存退出，不恢复旧身份", () => {
+    localStorage.setItem(NEBULA_AUTH_STORAGE_KEY, JSON.stringify(session));
+    const { result } = renderHook(() => useWbSession());
+    expect(result.current.session?.token).toBe("test-session-token");
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("remove blocked");
+    });
+    let cleared = false;
+    act(() => { cleared = result.current.clear(); });
+    expect(cleared).toBe(false);
+    expect(result.current.session).toBeNull();
   });
 
   it("token 本体写入失败返回可操作错误并清除失效会话", () => {

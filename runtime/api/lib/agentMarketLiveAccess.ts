@@ -12,6 +12,7 @@ export function assertTrainingOutcomeVisible(input: TrainingOutcomeVisibilityInp
   if (input.showcaseOptIn !== 1 && input.showcaseOptIn !== true && input.showcaseOptIn !== '1') {
     throw new Error('training_outcome_not_public')
   }
+  if (input.score === null || input.score === undefined || input.score === '' || typeof input.score === 'boolean' || (typeof input.score !== 'number' && typeof input.score !== 'string')) throw new Error('training_outcome_score_invalid')
   const score = Number(input.score)
   if (!Number.isSafeInteger(score) || score < 0 || score > 100) throw new Error('training_outcome_score_invalid')
   const reviewedAt = input.reviewedAt instanceof Date ? input.reviewedAt.getTime() : Date.parse(String(input.reviewedAt ?? ''))

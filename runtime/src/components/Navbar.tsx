@@ -89,12 +89,15 @@ export default function Navbar() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [searchOpen]);
 
-  closeSearchRef.current = closeSearch;
 
   function closeSearch() {
     setSearchOpen(false);
     searchRestoreRef.current?.focus();
   }
+
+  useEffect(() => {
+    closeSearchRef.current = closeSearch;
+  }, [closeSearch]);
 
   function openSearch() {
     searchRestoreRef.current = window.matchMedia(DESKTOP_NAV_MEDIA_QUERY)
@@ -291,11 +294,7 @@ export default function Navbar() {
       </header>
 
       {/* mobile drawer */}
-      <AnimatePresence
-        onExitComplete={() => {
-          if (searchOpen) searchInputRef.current?.focus();
-        }}
-      >
+      <AnimatePresence>
         {open && (
           <motion.div
             id="portal-mobile-drawer"

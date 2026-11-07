@@ -237,6 +237,17 @@ describe("DeliveryDetail", () => {
     expect(callWb).toHaveBeenCalledTimes(2);
   });
 
+  it("revision 未变仅 token 变化也重新鉴权，不复用旧证据", async () => {
+    callWb.mockImplementation(async (_kind, _path, currentSession) => ({ claim: { deliverable: `交付-${currentSession.token}`, evidenceSha256: "a" } }));
+    const { rerender } = render(<DeliveryDetail path="agentWork.delivery" input={{ claimId: 1 }} resultKey="claim" session={session} label="查看交付" cacheKey="a" />);
+    fireEvent.click(screen.getByText("查看交付"));
+    expect(await screen.findByText("交付-test-token")).toBeTruthy();
+    rerender(<DeliveryDetail path="agentWork.delivery" input={{ claimId: 1 }} resultKey="claim" session={{ ...session, token: "token-without-revision-change" }} label="查看交付" cacheKey="a" />);
+    expect(await screen.findByText("交付-token-without-revision-change")).toBeTruthy();
+    expect(screen.queryByText("交付-test-token")).toBeNull();
+    expect(callWb).toHaveBeenCalledTimes(2);
+  });
+
   it("空字符串是有效交付，不误报为没有交付", async () => {
     callWb.mockResolvedValue({
       claim: { deliverable: "", evidenceSha256: "a" },

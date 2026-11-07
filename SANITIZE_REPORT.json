@@ -1,25 +1,30 @@
 {
-  "files": 1074,
+  "files": 1130,
+  "copyOperations": 1115,
   "secretHits": [],
-  "components": 883,
+  "components": 875,
   "licenseCounts": {
-    "MIT": 739,
-    "Apache-2.0": 65,
+    "MIT": 736,
+    "Apache-2.0": 57,
     "MIT-0": 2,
     "ISC": 44,
+    "SEE LICENSE AT https://gsap.com/standard-license": 1,
     "BlueOak-1.0.0": 3,
     "Python-2.0": 1,
     "CC-BY-4.0": 1,
     "BSD-3-Clause": 9,
     "BSD-2-Clause": 14,
     "BSD": 1,
+    "Standard 'no charge' license: https://gsap.com/standard-license.": 1,
+    "(MIT OR GPL-3.0-or-later)": 1,
     "CC0-1.0": 1,
     "(MIT AND Zlib)": 1,
     "0BSD": 1,
     "MIT AND ISC": 1
   },
   "productionConfigIncluded": false,
-  "nodeModulesIncluded": false,
-  "distIncluded": false,
-  "gsapIncluded": false
+  "internalOnlyExclusions": [
+    "crossRepoSync.test.ts（需要内部 portal 姊妹仓）",
+    "dataLifecycle.test.ts（无 wb 姊妹仓时显式 skip）"
+  ]
 }

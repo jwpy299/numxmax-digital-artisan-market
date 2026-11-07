@@ -45,7 +45,7 @@ export function validScore(score: number): boolean {
   return Number.isInteger(score) && score >= SCORE_MIN && score <= SCORE_MAX;
 }
 
-export const PERMANENT_REFUND_FAILURE_CODES = new Set(["registration_refund_origin_not_paid", "registration_refund_amount_invalid"]);
+export const PERMANENT_REFUND_FAILURE_CODES = new Set(["registration_refund_origin_not_paid", "registration_refund_amount_invalid", "registration_refund_closed", "registration_refund_account_abnormal"]);
 
 export const KNOWN_REFUND_FAILURE_CODES = new Set([
   ...PERMANENT_REFUND_FAILURE_CODES,

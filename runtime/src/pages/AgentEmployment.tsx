@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import {
   BriefcaseBusiness,
   CheckCircle2,
@@ -48,6 +48,7 @@ import { WbError, WbLoading, WbNotice } from "@/components/wb/ui";
 import { DeliveryDetail } from "@/components/wb/DeliveryDetail";
 import { publicDisplayNameError } from "@/lib/publicDisplayName";
 import AgentPluginWorkbench from "@/components/agent/AgentPluginWorkbench";
+import WechatPendingOrderCard from "@/components/agent/WechatPendingOrderCard";
 
 // Eligibility is intentionally evaluated server-side via eligibleQualifiedRegistrations.
 interface Registration {
@@ -89,6 +90,8 @@ interface PaymentOrder {
   amountCents: number;
   amountJobTokens: number;
   status: string;
+  environment: string;
+  outTradeNo?: string | null;
 }
 interface Refund {
   refundNo: string;
@@ -116,6 +119,7 @@ interface TrainingMine {
     cycleDays: number;
     reviewGraceDays: number;
     sandboxEnabled: boolean;
+    wechatEnabled: boolean;
     sandboxQualificationEnabled: boolean;
     economyMode: string;
     paymentMode: string;
@@ -569,9 +573,14 @@ function PendingOrderCard({
 export default function AgentEmployment() {
   const { session } = useWbSession();
   const token = session?.token ?? "";
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
   const [tab, setTab] = useState<"personal" | "market" | "plugins" | "enterprise">(
-    "personal",
+    requestedTab === "market" || requestedTab === "plugins" || requestedTab === "enterprise" ? requestedTab : "personal",
   );
+  useEffect(() => {
+    if (requestedTab === "market" || requestedTab === "plugins" || requestedTab === "enterprise") setTab(requestedTab);
+  }, [requestedTab]);
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -702,6 +711,10 @@ export default function AgentEmployment() {
         ),
       )
     : 1;
+  useEffect(() => {
+    // 翻页后 hook 会暂时清空 data；未知总页数时不得把目标页钳回第一页。
+    if (myWork.data && myWorkPage >= myWorkPageCount) setMyWorkPage(myWorkPageCount - 1);
+  }, [myWork.data, myWorkPage, myWorkPageCount]);
   const factory = useWbQuery<FactoryData>(
     "agentWork.factory",
     session,
@@ -715,7 +728,7 @@ export default function AgentEmployment() {
     taskForm.jobId && selectedTaskJob?.departmentId,
   );
   const rulesReady =
-    !mine.loading && !mine.error && Boolean(mine.data?.rules.sandboxEnabled);
+    !mine.loading && !mine.error && Boolean(mine.data?.rules.sandboxEnabled || mine.data?.rules.wechatEnabled);
   const registerScope = "register";
   const publishJobScope = "publish-job";
   const publishTaskScope = "publish-task";
@@ -732,7 +745,8 @@ export default function AgentEmployment() {
   function registerButtonLabel(): string {
     if (mine.error) return "报名规则读取失败，请刷新重试";
     if (!mine.data) return "正在读取报名规则…";
-    if (!mine.data.rules.sandboxEnabled) return "支付通道未配置";
+    if (!mine.data.rules.sandboxEnabled && !mine.data.rules.wechatEnabled) return "支付通道未配置";
+    if (mine.data.rules.wechatEnabled && mine.data.rules.economyMode === "production") return "创建 ¥99 微信报名订单";
     return `创建 ${feeText(mine.data.rules, mine.data.rules.registrationFeeCents, mine.data.rules.registrationFeeJobTokens)}报名订单`;
   }
 
@@ -936,7 +950,9 @@ export default function AgentEmployment() {
             </div>
             <p className="mt-3 text-xs leading-6 text-ink-faint">
               {mine.data?.rules.economyMode === "production"
-                ? "当前为人民币计价；真实支付通道未接入，不创建待付订单。"
+                ? mine.data.rules.wechatEnabled
+                  ? "当前为人民币计价；微信二维码仅对应真实订单，支付结果以签名回调和订单回读为准。"
+                  : "当前为人民币计价；真实支付通道未接入，不创建待付订单。"
                 : "当前仅接 token 沙箱：兑换、报名、补考与退款只转移隔离环境的 job_token，不发生真实人民币扣款或退款。Agent 钱包足额支付前不会创建训练周期。"}
             </p>
           </div>
@@ -948,7 +964,14 @@ export default function AgentEmployment() {
                   (wallet) => wallet.registrationId === order.registrationId,
                 )?.balanceJobTokens ?? 0;
               const exchangeScope = `exchange-${order.orderNo}`;
-              return (
+              return order.environment === "production" ? (
+                <WechatPendingOrderCard
+                  key={order.orderNo}
+                  session={session}
+                  order={order}
+                  onRefresh={async () => { await mine.refetch() }}
+                />
+              ) : (
                 <PendingOrderCard
                   key={order.orderNo}
                   order={order}
@@ -1336,7 +1359,7 @@ export default function AgentEmployment() {
             canManage={canManage}
             onRetry={() => identity.refetch()}
           >
-            <>
+            {factory.loading ? <WbLoading text="读取企业任务与交付" /> : <>
               <div className="grid gap-5 lg:grid-cols-2">
                 <form
                   onSubmit={(e) => {
@@ -1817,7 +1840,7 @@ export default function AgentEmployment() {
                   ))}
                 </div>
               </div>
-            </>
+            </>}
           </EnterpriseRoleGate>
         </section>
       )}

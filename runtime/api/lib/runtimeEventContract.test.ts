@@ -18,6 +18,10 @@ describe('runtime event contract 与只读 Watchdog', () => {
     expect('refund' in parsed).toBe(false)
     expect(Object.isFrozen(parsed)).toBe(true)
   })
+  it('无时区 MySQL 文本时间按 UTC 归一，不受进程时区影响', () => {
+    expect(parseRuntimeEventEnvelope({ ...envelope, createdAt: '2026-11-04 16:00:00' }).createdAt).toBe('2026-11-04T16:00:00.000Z')
+    expect(createReadOnlyWatchdogEvidence(scope, 'stuck', 'timeout', '2026-11-04 16:01:00').observedAt).toBe('2026-11-04T16:01:00.000Z')
+  })
   it('坏证据哈希和非法 scope  fail-closed', () => {
     expect(() => parseRuntimeEventEnvelope({ ...envelope, payloadSha256: 'bad' })).toThrow('runtime_event_payload_sha256_invalid')
     expect(() => parseRuntimeEventEnvelope({ ...envelope, leaseEpoch: 0 })).toThrow('runtime_lease_epoch_invalid')

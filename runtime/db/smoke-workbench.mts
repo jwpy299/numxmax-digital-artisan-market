@@ -92,7 +92,7 @@ try {
 
   const me = await agentic.authMe({ token: login.token });
   assert.ok(me && me.user.username === "demo" && me.profile?.enterpriseName === "华辰精工");
-  const meBad = await agentic.authMe({ token: "example-token-not-a-credential" });
+  const meBad = await agentic.authMe({ token: "nt_deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef" });
   assert.equal(meBad, null, "authMe 坏 token 必须返回 null");
   console.log("ok: authMe 好 token → {user,profile}；坏 token → null");
 

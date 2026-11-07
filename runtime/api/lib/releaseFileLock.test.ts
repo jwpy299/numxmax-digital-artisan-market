@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { EventEmitter } from 'node:events'
 import { execFileSync } from 'node:child_process'
 import { withReleaseFileLock } from './releaseFileLock'
 
@@ -50,6 +51,53 @@ describe.skipIf(!HAS_ROOT)('发布文件锁（root-only；公开 CI 另有特权
     } finally {
       release()
       await first
+    }
+  }, 10_000)
+
+  it('锁文件验证后被替换时，助手按 dev/ino 身份拒绝接管', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'release-file-lock-race-'))
+    roots.push(root)
+    const lockPath = path.join(root, 'restore.lock')
+    const replacement = path.join(root, 'replacement.lock')
+    fs.writeFileSync(lockPath, '')
+    fs.writeFileSync(replacement, '')
+    vi.stubEnv('RELEASE_LOCK_FILE', lockPath)
+    vi.resetModules()
+    vi.doMock('node:child_process', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('node:child_process')>()
+      return {
+        ...actual,
+        spawn: (command: string, args: string[], options: object) => {
+          fs.renameSync(replacement, lockPath)
+          return actual.spawn(command, args, options)
+        },
+      }
+    })
+    try {
+      const { withReleaseFileLock: locked } = await import('./releaseFileLock')
+      await expect(locked(async () => 'must-not-run')).rejects.toThrow('发布文件锁配置或权限异常')
+    } finally {
+      vi.doUnmock('node:child_process')
+      vi.resetModules()
+    }
+  }, 10_000)
+
+  it('业务已写入但锁退出超时时返回 lockCleanupUnknown 而非简单失败', async () => {
+    vi.resetModules()
+    const child = new EventEmitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter; exitCode: number | null; signalCode: string | null; kill: ReturnType<typeof vi.fn> }
+    Object.assign(child, { stdout: new EventEmitter(), stderr: new EventEmitter(), exitCode: null, signalCode: null, kill: vi.fn() })
+    vi.doMock('node:child_process', async (importOriginal) => ({ ...await importOriginal<typeof import('node:child_process')>(), spawn: () => child }))
+    try {
+      const { withReleaseFileLock: locked } = await import('./releaseFileLock')
+      const pending = locked(async () => ({ ok: true as const }))
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      child.stdout.emit('data', 'locked\n')
+      const result = await pending
+      expect(result).toMatchObject({ ok: true, lockCleanupUnknown: true })
+      expect(result.warning).toContain('禁止盲目重试')
+    } finally {
+      vi.doUnmock('node:child_process')
+      vi.resetModules()
     }
   }, 10_000)
 })

@@ -1,6 +1,11 @@
 import { lazy, Suspense, useRef } from 'react'
+import gsap from 'gsap'
+import { SplitText } from 'gsap/SplitText'
+import { useGSAP } from '@gsap/react'
 import { ChevronDown } from 'lucide-react'
 import { ACTS } from './acts'
+
+gsap.registerPlugin(SplitText)
 
 const HeroStarfield = lazy(() => import('./HeroStarfield'))
 
@@ -12,6 +17,37 @@ interface LifecycleHeroProps {
 export default function LifecycleHero({ onActClick }: LifecycleHeroProps) {
   const scope = useRef<HTMLElement>(null)
 
+  useGSAP(
+    () => {
+      const split = new SplitText('.lc-title-line', { type: 'chars' })
+      const tl = gsap.timeline({ defaults: { ease: 'power4.out' } })
+      tl.from(split.chars, {
+        y: 50,
+        opacity: 0,
+        rotateX: -40,
+        stagger: 0.03,
+        duration: 1,
+      })
+        .fromTo(
+          '.lc-hud',
+          { letterSpacing: '0.4em', opacity: 0 },
+          { letterSpacing: '0.18em', opacity: 1, duration: 1.1 },
+          0.2,
+        )
+        .from(
+          '.lc-tick',
+          { scale: 0.8, opacity: 0, stagger: 0.08, duration: 0.5, ease: 'back.out(1.8)' },
+          0.8,
+        )
+        .from('.lc-scroll-hint', { opacity: 0, y: 12, duration: 0.6 }, 1.3)
+      // breathing scroll arrow
+      gsap.to('.lc-arrow', { y: 8, duration: 1.2, ease: 'sine.inOut', yoyo: true, repeat: -1 })
+      return () => {
+        split.revert()
+      }
+    },
+    { scope },
+  )
 
   return (
     <section ref={scope} className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-void">

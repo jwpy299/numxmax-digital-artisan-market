@@ -1,5 +1,5 @@
 /** 真实 MySQL 隔离库集成验收；默认跳过，显式 AGENT_EMPLOYMENT_MYSQL_TEST=1 才运行。 */
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { getDb } from "../queries/connection";
@@ -72,8 +72,10 @@ async function registerAndPay(label: string): Promise<number> {
   const exchangeKey = key(`exchange-${label}`);
   const exchanged = await training.sandboxExchange({ token: agentToken, registrationId: Number(registration.registrationId), amountJobTokens: 990, idempotencyKey: exchangeKey });
   expect(exchanged.realExchange).toBe(false);
-  const duplicateExchange = await training.sandboxExchange({ token: agentToken, registrationId: Number(registration.registrationId), amountJobTokens: 990, idempotencyKey: exchangeKey });
+  const duplicateExchange = await training.sandboxExchange({ token: agentToken, registrationId: Number(registration.registrationId), amountJobTokens: 1, idempotencyKey: exchangeKey });
   expect(duplicateExchange.already).toBe(true);
+  expect(duplicateExchange.amountJobTokens).toBe(990);
+  expect(duplicateExchange.amountCents).toBe(9900);
   const otherPay = training.sandboxPay({ token: otherAdminToken, orderNo: registration.orderNo, idempotencyKey: key("cross-user-pay") });
   await expect(otherPay).rejects.toThrow();
   await expect(training.sandboxCallback({
@@ -737,6 +739,30 @@ describe.skipIf(!enabled).sequential("个人 Agent 就业真实 MySQL 闭环", (
     expect(result.scanned).toBe(expected);
   });
 
+  it("超过 200 个活动周期也按 keyset 全扫，重复 sweep 不重复释放", async () => {
+    const registrationId = await registerAndPay("分页扫描Agent");
+    for (let index = 0; index < 205; index += 1) {
+      await db.execute(sql`INSERT INTO st_agent_training_cycles
+        (registration_id, attempt_no, status, starts_at, ends_at)
+        VALUES (${registrationId}, ${1000 + index}, 'active', NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY))`);
+    }
+    const before = rows(await db.execute(sql`SELECT COUNT(*) AS count FROM st_agent_training_cycles WHERE status IN ('active','reviewing')`))[0];
+    const expected = Number(before.count);
+    expect(expected).toBeGreaterThan(200);
+    const first = await runAgentTrainingSweep();
+    expect(first.failedCycles).toBe(0);
+    expect(first.scanned).toBe(expected);
+    const highest = rows(await db.execute(sql`SELECT MAX(id) AS id FROM st_agent_training_cycles WHERE registration_id=${registrationId}`))[0];
+    const releasedForHighest = rows(await db.execute(sql`SELECT COUNT(*) AS count FROM st_agent_training_tasks WHERE cycle_id=${Number(highest.id)}`))[0];
+    expect(Number(releasedForHighest.count)).toBeGreaterThan(0);
+    const taskCountBefore = rows(await db.execute(sql`SELECT COUNT(*) AS count FROM st_agent_training_tasks`))[0];
+    const second = await runAgentTrainingSweep();
+    expect(second.failedCycles).toBe(0);
+    expect(second.scanned).toBe(expected);
+    const taskCountAfter = rows(await db.execute(sql`SELECT COUNT(*) AS count FROM st_agent_training_tasks`))[0];
+    expect(Number(taskCountAfter.count)).toBe(Number(taskCountBefore.count));
+  });
+
   it("永久退款失败同步注册费用终态且不再每轮误报处理中", async () => {
     const registrationId = await registerAndPay("永久退款失败Agent");
     process.env.PAYMENT_SANDBOX_ENABLED = "false";
@@ -792,6 +818,34 @@ describe.skipIf(!enabled).sequential("个人 Agent 就业真实 MySQL 闭环", (
     expect(oldOrder.status).toBe("abandoned");
     expect(oldOrder.idem).toBe(`abandoned:order:${Number(oldOrder.id)}`);
   });
+
+  it("过期取消越过 200 条持续失败任务，不饿死后续任务", async () => {
+    if (!enabled) return;
+    const prefix = `expired-sweep-${randomBytes(6).toString("hex")}`;
+    const brokenFactoryId = 9_000_000_000;
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    let validTaskId = 0;
+    try {
+      const broken = Array.from({ length: 200 }, (_, index) => sql`(${`${prefix}-bad-${index}`}, ${brokenFactoryId}, ${adminId}, '持续失败过期任务', '隔离库故障夹具', 1, 1, 'open', DATE_SUB(NOW(), INTERVAL 1 DAY), ${`${prefix}-bad-idem-${index}`})`);
+      await db.execute(sql`INSERT INTO st_agent_work_tasks
+        (task_no, factory_id, publisher_user_id, title, brief, reward_job_tokens, escrow_job_tokens, status, deadline_at, idempotency_key)
+        VALUES ${sql.join(broken, sql`,`)}`);
+      const valid = await work.publishTask({
+        token: adminToken, idempotencyKey: `${prefix}-valid-idem`, departmentId: 'dept-a',
+        title: '失败批次之后仍可取消', brief: '验证 keyset 不被前 200 条永久失败任务阻塞。', rewardJobTokens: 1,
+      });
+      validTaskId = valid.id;
+      await db.execute(sql`UPDATE st_agent_work_tasks SET deadline_at=DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE id=${validTaskId}`);
+      const outcome = await runAgentTrainingSweep();
+      expect(outcome.failedTaskCancels).toBeGreaterThanOrEqual(200);
+      expect(outcome.cancelledTasks).toBeGreaterThanOrEqual(1);
+      const validRow = rows(await db.execute(sql`SELECT status, cancel_reason AS cancelReason FROM st_agent_work_tasks WHERE id=${validTaskId}`))[0];
+      expect(validRow).toMatchObject({ status: 'cancelled', cancelReason: 'deadline_expired' });
+    } finally {
+      await db.execute(sql`DELETE FROM st_agent_work_tasks WHERE task_no LIKE ${`${prefix}%`}`);
+      error.mockRestore();
+    }
+  }, 60_000);
 
   it("我的交付与工资返回真实总数并支持第二页回读", async () => {
     const pageToken = `nt_agent_${randomBytes(12).toString("hex")}`;

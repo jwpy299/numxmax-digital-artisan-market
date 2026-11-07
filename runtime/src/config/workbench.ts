@@ -14,7 +14,7 @@
  */
 export const NEBULA_WORKBENCH_URL: string =
   (import.meta.env.VITE_WORKBENCH_WEB_URL as string | undefined) ??
-  'https://wb.example.invalid' // :3000 死端口摘（NumX 抓：公网 TCP 拒——兜底指 443 活面）
+  'https://wb.lingshu-nebulaai.com' // :3000 死端口摘（NumX 抓：公网 TCP 拒——兜底指 443 活面）
 
 /** localStorage 会话键：沿用工作台官方文档约定，登录/注册后保存含 token 的会话对象 */
 export const NEBULA_AUTH_STORAGE_KEY = 'nebula_auth'

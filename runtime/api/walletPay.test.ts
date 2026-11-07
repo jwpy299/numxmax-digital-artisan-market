@@ -114,13 +114,18 @@ vi.mock("./queries/connection", () => ({
         flows.push({ direction: p[2], amount: p[3], balanceAfter: p[4], bizType: p[5] });
         return [{ insertId: flows.length }];
       }
+      if (/AS uIn/.test(t)) {
+        const userIncome = flows.filter((f) => f.ownerType === 'user' && f.ownerId === 1 && f.direction === 'in').reduce((sum, f) => sum + Number(f.amount), 0);
+        const agentIncome = wageDebits.filter((w) => w.direction === 'credit' && w.walletOwnerType === 'agent').reduce((sum, w) => sum + Number(w.amount), 0);
+        return [[{ uIn: userIncome + agentIncome }]];
+      }
+      if (/AS agentBalance/.test(t)) return [[{ agentBalance: 0 }]];
       if (/AS fOut/.test(t)) {
         // 只有包含工资台账的查询才按真实语义回包；旧查询会在这里得到 0，形成回归红灯。
-        if (!/st_agent_wage_ledger/.test(t)) return [[{ fOut: 0, uIn: 0 }]];
+        if (!/st_agent_wage_ledger/.test(t)) return [[{ fOut: 0 }]];
         const flowSpend = flows.filter((f) => f.ownerType === 'enterprise' && f.ownerId === 10 && f.direction === 'out' && f.bizType !== 'agent_task_escrow_reserve').reduce((sum, f) => sum + Number(f.amount), 0);
         const wageSpend = wageDebits.filter((w) => w.factoryId === 10 && w.direction === 'debit' && w.walletOwnerType === 'enterprise' && w.walletOwnerId === 10).reduce((sum, w) => sum + Number(w.amount), 0);
-        const userIncome = flows.filter((f) => f.ownerType === 'user' && f.ownerId === 1 && f.direction === 'in').reduce((sum, f) => sum + Number(f.amount), 0);
-        return [[{ fOut: flowSpend + wageSpend, uIn: userIncome }]];
+        return [[{ fOut: flowSpend + wageSpend }]];
       }
       if (/FROM st_wallet_flows WHERE owner_type/.test(t)) return [flows.map((f, i) => ({ id: i + 1, ...f }))];
       if (/FROM masters m/.test(t)) return [[{ id: 1, name: "NumX Max 官方", title: "平台官方", tokenBalance: 0, credits: 0 }]];
@@ -258,6 +263,6 @@ describe("dualWallet 月度支出口径", () => {
     ];
     const result = await caller.dualWallet({ token: 'TEST_owner' });
     expect(result.factoryMonthSpend).toBe(225);
-    expect(result.userMonthIncome).toBe(25);
+    expect(result.userMonthIncome).toBe(525);
   });
 });

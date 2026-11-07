@@ -92,7 +92,7 @@ export default function InternalHome() {
                   <span className="text-ink-faint">舱主 {c.headName ?? '—'} · 数字员工 {c.agents} · 开任务 {c.openTasks}</span>
                 </div>
                 <a
-                  href={`https://admin.example.invalid:3200/stations?tab=${encodeURIComponent(c.code)}`}
+                  href={`https://admin.lingshu-nebulaai.com:3200/stations?tab=${encodeURIComponent(c.code)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="mt-1.5 inline-block rounded border border-pulse-cyan/40 px-2 py-0.5 text-pulse-cyan hover:bg-pulse-cyan/10"

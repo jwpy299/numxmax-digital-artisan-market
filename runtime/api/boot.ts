@@ -14,7 +14,9 @@ import { registerWechatCallback } from "./wechat/callback";
 import { registerStreamEndpoints } from "./routers/streamBus";
 import { handleAgentMarketLiveSse } from "./routers/agentMarketLiveSse";
 import { handleWechatPayCallback } from "./routers/agentPluginPayments";
+import { assertWechatPaymentBootConfig, wechatPaymentsEnabled, WECHAT_CALLBACK_PATH } from "./lib/wechatPayV2";
 import { spiritChatHandler } from "./routers/spiritChat";
+import { teamProgressHandler, teamProgressStreamHandler, teamProgressSayHandler } from "./routers/teamProgress"; // 工程团队进度面（门户域名）
 import { inviteQrHandler } from "./routers/qrImage";
 import { isAdminDeploy } from "./lib/deployRole";
 import { adminQrImageHandler } from "./routers/adminQrImage";
@@ -24,17 +26,23 @@ import { Paths } from "@contracts/constants";
 import { createHealthzMachine } from "./healthzMachine"; // P1-4：深健康状态机（调度/缓存/换槽收口于此，boot 薄装配）
 import { ensureOpsTables } from "../db/sync-ops.mts";
 
-// 测试经济必须先核验真实连接库名，再允许任何启动期写入或 HTTP 监听；只认 flag 不足以隔离生产。
 const agentTestEconomyAtBoot = isAgentTestEconomy();
+const testPreview = !env.isProduction && process.env.NODE_ENV !== "test" && agentTestEconomyAtBoot && agentTestPreviewFlag();
+const hostname = process.env.BIND_HOST || "127.0.0.1";
+const rawPort = process.env.PORT || "3000";
+const port = Number(rawPort);
+if (testPreview && !["127.0.0.1", "::1", "localhost"].includes(hostname)) throw new Error("AGENT_TEST_PREVIEW_HOST_FORBIDDEN");
+if ((env.isProduction || testPreview) && (!Number.isInteger(port) || port < 1 || port > 65535)) throw new Error(`PORT_INVALID:${JSON.stringify(rawPort.slice(0, 32))}`);
+const viteDevServer = process.env.NEBULA_VITE_DEV_SERVER === "1";
+// 经济模式与测试库身份必须先于任何 DDL／监听；生产误配 test 时不得先写表再退出。
 if (env.isProduction || agentTestEconomyAtBoot) {
   assertAgentEconomyBootMode();
   if (agentTestEconomyAtBoot) await assertAgentTestDatabaseConnection();
 }
-
-// 迭代 27：启动时幂等确保运营中心/套餐相关 7 张表存在（fire-and-forget，失败静默不阻断启动）
-void ensureOpsTables().catch(() => {
-  /* 表由 db/sync-ops.mts 手动补齐，启动绝不因建表失败而中断 */
-});
+if (env.isProduction || viteDevServer || testPreview) {
+  void ensureOpsTables().catch(() => undefined);
+  void ensureSmsTables().catch((e) => console.warn("[sms-yxt] ensureSmsTables failed:", (e as Error)?.message ?? e));
+}
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -66,7 +74,10 @@ app.get(Paths.healthz, async (c) => {
 // #24 星云手机精灵云端对话（免鉴权演示端点，自带限流）
 app.post("/api/spirit-chat", spiritChatHandler);
 // 工程团队实时进度（彭总令 2026-10-06：挂门户域名，独立页面——进度页专用口令鉴权，不用工作台登录）
+app.get("/api/team-progress", teamProgressHandler);
+app.get("/api/team-progress/stream", teamProgressStreamHandler);
 // 彭总发话上桥（三人同席：页面直说，我俩都听见）
+app.post("/api/team-progress/say", teamProgressSayHandler);
 app.get("/api/invite-qr", inviteQrHandler);
 if (isAdminDeploy()) {
   app.get(Paths.adminQrImage, adminQrImageHandler);
@@ -77,8 +88,6 @@ app.post("/api/sms-yxt/mo", smsYxtMoHandler);
 // GET 活性面（P-YXT-BIND 实证）：推送地址 POST-only——浏览器/平台后台 GET 探测得 404=「地址打不开」误判面封死（GET 只回活性标，零业务面零数据）
 app.get("/api/sms-yxt/report", (c) => c.json({ ok: true, endpoint: "sms-yxt/report", method: "POST" }));
 app.get("/api/sms-yxt/mo", (c) => c.json({ ok: true, endpoint: "sms-yxt/mo", method: "POST" }));
-// 短信三台账 DDL 启动预热（fire-and-forget——请求路径只剩 INSERT，与 ensureOpsTables 同面）
-void ensureSmsTables().catch((e) => console.warn("[sms-yxt] ensureSmsTables failed:", (e as Error)?.message ?? e));
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",
@@ -101,16 +110,14 @@ registerWechatCallback(app);
 // EventSource 仅支持 GET，token 走 query 是全系统唯一例外；token 永不落日志。
 registerStreamEndpoints(app);
 app.get("/api/stream/agent-market-live", handleAgentMarketLiveSse);
-app.post("/api/payments/wechat/callback", handleWechatPayCallback);
+if (wechatPaymentsEnabled()) {
+  assertWechatPaymentBootConfig();
+  app.post(WECHAT_CALLBACK_PATH, handleWechatPayCallback);
+}
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
 
-const hostname = process.env.BIND_HOST || "127.0.0.1";
-const rawPort = process.env.PORT || "3000";
-const port = Number(rawPort);
-const testPreview = !env.isProduction && process.env.NODE_ENV !== "test" && isAgentTestEconomy() && agentTestPreviewFlag();
-if ((env.isProduction || testPreview) && (!Number.isInteger(port) || port < 1 || port > 65535)) throw new Error(`PORT_INVALID:${JSON.stringify(rawPort.slice(0, 32))}`);
 const explicitGateInstanceId = process.env.GATE_INSTANCE_ID?.trim();
 const gateInstanceId = explicitGateInstanceId || `${hostname}:${port}`;
 
@@ -235,7 +242,7 @@ if (env.isProduction) {
   }
 }
 
-if (testPreview) await startHttpServer();
+if (testPreview && !viteDevServer) await startHttpServer();
 
 // 个人 Agent 隔离训练：仅 AGENT_TRAINING_SWEEP=1 显式启用；先完成 additive DDL，再允许自动结算。
 // 与 env.isProduction 解耦：隔离 staging/dev 显式开启沙箱时也能推进七日生命周期。

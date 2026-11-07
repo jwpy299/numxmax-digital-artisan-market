@@ -31,4 +31,11 @@ describe('runtime-events 插件最小权限', () => {
       expect(() => authorize(event)).toThrow('runtime_plugin_entitlement_expired')
     } finally { vi.useRealTimers() }
   })
+
+  it('写事件和未知事件类型不能绕过 read 权限', () => {
+    expect(() => createRuntimePluginEventAuthorizer(grant, 'tasks:read')({ ...event, type: 'tasks.write' })).toThrow('runtime_plugin_event_action_mismatch')
+    expect(() => createRuntimePluginEventAuthorizer(grant, 'tasks:read')({ ...event, type: 'training.read' })).toThrow('runtime_plugin_event_action_mismatch')
+    expect(() => createRuntimePluginEventAuthorizer(grant, 'tasks:read')({ ...event, type: 'admin.write' })).toThrow('runtime_plugin_event_type_invalid')
+  })
+
 })

@@ -2,10 +2,11 @@
 # 仓外备份恢复：root 单飞、显式白名单、暂存验哈希、制品先行、清单最后、失败可回滚。
 set -euo pipefail
 
-SRC="${RELEASE_BACKUP_DIR:-${PWD}/release-backups/portal}"
-DST="${PORTAL_PUBLIC_DIR:-${PWD}/public}"
-DST_DIST="${PORTAL_DIST_PUBLIC_DIR:-${PWD}/dist/public}"
-WORK_ROOT="${RELEASE_WORK_ROOT:-${PWD}/release-work/numx-artifacts}"
+SRC="${RELEASE_BACKUP_DIR:-/opt/numxmax/release-backups/portal}"
+DST="${PORTAL_PUBLIC_DIR:-/opt/numxmax/portal/public}"
+DST_DIST="${PORTAL_DIST_PUBLIC_DIR:-/opt/numxmax/portal/dist/public}"
+WORK_ROOT="${RELEASE_WORK_ROOT:-/opt/numxmax/release-work/numx-artifacts}"
+HISTORY_ROOT="${RELEASE_MANIFEST_HISTORY_DIR:-$WORK_ROOT/manifest-history}"
 LOCK_FILE="${RELEASE_LOCK_FILE:-$WORK_ROOT/restore.lock}"
 PUBLIC_BASE_URL="${PORTAL_DOWNLOAD_BASE_URL:-${PORTAL_PUBLIC_BASE_URL:-${RELEASE_PUBLIC_BASE_URL:-https://downloads.example.invalid}}}"
 PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
@@ -28,11 +29,11 @@ assert_no_symlink_tree() {
     current="$(dirname "$current")"
   done
 }
-for original in "$SRC_RAW" "$DST_RAW" "$DST_DIST_RAW" "$WORK_ROOT_RAW" "$LOCK_FILE_RAW"; do
+for original in "$SRC_RAW" "$DST_RAW" "$DST_DIST_RAW" "$WORK_ROOT_RAW" "$LOCK_FILE_RAW" "$HISTORY_ROOT"; do
   assert_no_symlink_tree "$original"
 done
 command -v realpath >/dev/null 2>&1 || fail "恢复脚本需要 GNU realpath"
-for variable in SRC DST DST_DIST WORK_ROOT LOCK_FILE; do
+for variable in SRC DST DST_DIST WORK_ROOT LOCK_FILE HISTORY_ROOT; do
   printf -v "$variable" '%s' "$(realpath -m -- "${!variable}")"
 done
 assert_test_injection_allowed() {
@@ -112,7 +113,15 @@ restore_target() {
     if [ "$file" = app-release.json ] && [ "$(version_of "$target/app-release.json" 2>/dev/null)" != "$VER" ]; then continue; fi
     # 当前文件必须仍是本进程刚写入的哈希，避免覆盖其它发布通道的新制品。
     if [ ! -f "$STAGE/$file" ] || [ ! -f "$target/$file" ]; then continue; fi
-    if [ "$(sha256sum "$target/$file" | cut -d' ' -f1)" != "$(sha256sum "$STAGE/$file" | cut -d' ' -f1)" ]; then continue; fi
+    if [ "$(sha256sum "$target/$file" | cut -d' ' -f1)" != "$(sha256sum "$STAGE/$file" | cut -d' ' -f1)" ]; then
+      if [ -f "$backup/$file" ] && [ "$(sha256sum "$target/$file" | cut -d' ' -f1)" = "$(sha256sum "$backup/$file" | cut -d' ' -f1)" ]; then
+        # 尚未被本次发布触及的旧文件不需要回滚，不能误判为并发修改。
+        continue
+      fi
+      echo "当前文件与暂存及历史均不一致，需人工核对：$target/$file" >&2
+      rc=1
+      continue
+    fi
     if [ -f "$backup/$file" ]; then
       expected="$(snapshot_hash "$file" "$backup")"
       actual="$(sha256sum "$backup/$file" | cut -d' ' -f1)"
@@ -121,9 +130,7 @@ restore_target() {
         rc=1
         continue
       fi
-      if ! rm -f "$target/$file" || ! ln "$backup/$file" "$target/$file" 2>/dev/null; then
-        atomic_install "$backup/$file" "$target/$file" || rc=1
-      fi
+      atomic_install "$backup/$file" "$target/$file" || rc=1
     else
       rm -f "$target/$file" || rc=1
     fi
@@ -359,14 +366,17 @@ check_downgrade
 publish_manifest "$DST_DIST"
 verify_target "$DST"
 verify_target "$DST_DIST"
-PUBLISHING=0
 persist_manifest_snapshot() {
-  local history="$WORK_ROOT/manifest-history/$VER" file
+  local history="$HISTORY_ROOT/$VER" file
   if [ -d "$history" ]; then
     [ "$(stat -c '%U:%a' "$history")" = "root:700" ] || fail "历史快照目录权限不符：$history"
-    cmp -s "$STAGE/app-release.json" "$history/app-release.json" || fail "历史 manifest 内容冲突，拒绝覆盖：$history"
-    cmp -s "$STAGE/SHA256SUMS" "$history/SHA256SUMS" || fail "历史 SHA256SUMS 内容冲突，拒绝覆盖：$history"
-    return 0
+    if [ -f "$history/app-release.json" ] || [ -f "$history/SHA256SUMS" ] || [ -f "$history/snapshot-hashes.tsv" ]; then
+      [ -f "$history/app-release.json" ] && [ -f "$history/SHA256SUMS" ] && [ -f "$history/snapshot-hashes.tsv" ] || fail "历史快照文件不完整，拒绝覆盖：$history"
+      cmp -s "$STAGE/app-release.json" "$history/app-release.json" || fail "历史 manifest 内容冲突，拒绝覆盖：$history"
+      cmp -s "$STAGE/SHA256SUMS" "$history/SHA256SUMS" || fail "历史 SHA256SUMS 内容冲突，拒绝覆盖：$history"
+      return 0
+    fi
+    # API 专用 api-app-release.json 等文件不属于本脚本快照格式，继续补齐脚本自己的文件。
   fi
   mkdir -p "$history"
   chmod 700 "$history"
@@ -380,4 +390,5 @@ persist_manifest_snapshot() {
   sync -d "$history"
 }
 persist_manifest_snapshot
+PUBLISHING=0
 printf 'RELEASE_ARTIFACTS_SYNC_OK version=%s\n' "$VER"

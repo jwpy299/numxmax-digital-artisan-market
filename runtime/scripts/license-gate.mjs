@@ -1,7 +1,14 @@
 import fs from 'node:fs'
 
 const roots = [new URL('../', import.meta.url).pathname, new URL('../../desktop', import.meta.url).pathname]
-const allowed = new Set(['MIT','MIT-0','ISC','Apache-2.0','BSD-2-Clause','BSD-3-Clause','BSD','CC0-1.0','CC-BY-4.0','Python-2.0','BlueOak-1.0.0','0BSD','(MIT AND Zlib)','MIT AND ISC'])
+const allowed = new Set([
+  'MIT', 'MIT-0', 'ISC', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'BSD',
+  'CC0-1.0', 'CC-BY-4.0', 'Python-2.0', 'BlueOak-1.0.0', '0BSD',
+  '(MIT AND Zlib)', 'MIT AND ISC',
+  // GSAP Standard License：仅网站／Web 应用等 Permitted Uses；禁止 Webflow 式可视化动画构建器用途。
+  'SEE LICENSE AT https://gsap.com/standard-license',
+  "Standard 'no charge' license: https://gsap.com/standard-license.",
+])
 const failures = []
 for (const root of roots) {
   const file = `${root}package-lock.json`
@@ -11,10 +18,9 @@ for (const root of roots) {
     const name = path.split('node_modules/').at(-1)
     if (!name || name === '.package-lock.json') continue
     let license = info.license || 'UNKNOWN'
-    if (name === 'webgl-constants') license = 'MIT'
-    if (name === 'jszip') license = 'MIT'
+    if (name === 'webgl-constants' || name === 'jszip') license = 'MIT'
     if (!allowed.has(license)) failures.push({ name, license })
   }
 }
-console.log(JSON.stringify({ failures }, null, 2))
+console.log(JSON.stringify({ failures, gsapLicense: 'https://gsap.com/standard-license' }, null, 2))
 if (failures.length) process.exit(1)

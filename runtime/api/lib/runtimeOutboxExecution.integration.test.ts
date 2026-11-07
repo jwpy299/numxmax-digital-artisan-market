@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { getDb } from '../queries/connection'
 import { rawRows } from '../queries/rawRows'
-import { executeRuntimeOutboxEvent } from './runtimeOutboxExecutor'
+import { executeRuntimeOutboxEvent, type RuntimeOutboxEvidenceStore } from './runtimeOutboxExecutor'
 import { RuntimeOutboxMysqlStore, readRuntimeLease } from './runtimeOutboxMysql'
 import { AGENT_TEST_DATABASE_PREFIX } from './agentEconomy'
 
@@ -37,7 +37,7 @@ beforeAll(async () => {
   const row = rawRows(await db.execute(sql`SELECT DATABASE() AS name`))[0]
   expect(String(row?.name)).toMatch(new RegExp(`^${AGENT_TEST_DATABASE_PREFIX}`))
   await seed(`valid-${suffix}`); await seed(`revoked-${suffix}`, 'revoked')
-  await seed(`mid-${suffix}`); await seed(`failed-${suffix}`)
+  await seed(`mid-${suffix}`); await seed(`failed-${suffix}`); await seed(`writefail-${suffix}`)
 })
 
 describe('runtime outbox 真实执行集成', () => {
@@ -71,5 +71,23 @@ describe('runtime outbox 真实执行集成', () => {
     const event = eventFor(`failed-${suffix}`, 'failed-event')
     const outcome = await executeRuntimeOutboxEvent(event, () => lease(event.leaseId), store, async () => { throw new Error('worker crashed') }, allowAll)
     expect(outcome).toMatchObject({ status: 'execution_failed', delivered: false, failureCode: 'executor_error' })
+  })
+  it('证据连续写失败留下 claim 恢复状态且不重复执行', async () => {
+    if (!enabled || !store) return
+    const event = eventFor(`writefail-${suffix}`, 'writefail-event')
+    const failingStore: RuntimeOutboxEvidenceStore = {
+      claim: (value) => store.claim(value),
+      record: async () => { throw new Error('injected evidence write failure') },
+      markEvidenceWriteFailed: (value) => store.markEvidenceWriteFailed(value),
+    }
+    let executions = 0
+    const executor = async () => { executions += 1; return result }
+    const first = await executeRuntimeOutboxEvent(event, () => lease(event.leaseId), failingStore, executor, allowAll)
+    const second = await executeRuntimeOutboxEvent(event, () => lease(event.leaseId), failingStore, executor, allowAll)
+    expect(first).toMatchObject({ status: 'outcome_unknown', failureCode: 'evidence_write_failed' })
+    expect(second).toMatchObject({ status: 'outcome_unknown', failureCode: 'evidence_write_failed' })
+    expect(executions).toBe(1)
+    expect(rawRows(await db.execute(sql`SELECT status FROM st_runtime_outbox_claims WHERE event_id=${event.eventId}`))[0]?.status).toBe('evidence_write_failed')
+    expect(rawRows(await db.execute(sql`SELECT id FROM st_runtime_execution_evidence WHERE event_id=${event.eventId}`))).toHaveLength(0)
   })
 })

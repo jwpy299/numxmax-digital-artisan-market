@@ -1,5 +1,5 @@
 /** 桌面端 API/页面/导航/子资源信任域单源：主进程与构建期 preload 渲染同引。 */
-const DOMAIN = process.env.NUMX_PUBLIC_DOMAIN || "example.invalid";
+const DOMAIN = "lingshu-nebulaai.com";
 const WWW_ORIGIN = `https://www.${DOMAIN}`;
 const ADMIN_ORIGIN = `https://admin.${DOMAIN}`;
 const WB_ORIGIN = `https://wb.${DOMAIN}`;

@@ -3,9 +3,15 @@ import { AGENT_TEST_DATABASE_PREFIX } from '../api/lib/agentEconomy'
 const url = process.argv[2] ?? process.env.DATABASE_URL
 if (!url) throw new Error('DATABASE_URL required')
 const conn = await mysql.createConnection(url)
-const [rows] = await conn.query<mysql.RowDataPacket[]>('SELECT DATABASE() AS name')
-if (!String(rows[0]?.name ?? '').startsWith(AGENT_TEST_DATABASE_PREFIX)) throw new Error('AGENT_PLUGIN_PAYMENTS_TEST_DATABASE_REQUIRED')
+const economyMode = process.env.ECONOMY_MODE ?? 'production'
+if (!['production', 'test'].includes(economyMode)) throw new Error('ECONOMY_MODE_INVALID')
+if (economyMode === 'test' && process.env.NODE_ENV === 'production') throw new Error('ECONOMY_MODE_TEST_FORBIDDEN_IN_PRODUCTION')
+if (economyMode === 'test' && process.env.AGENT_EMPLOYMENT_TEST_DATABASE !== '1') throw new Error('AGENT_EMPLOYMENT_TEST_DATABASE_REQUIRED')
+const [rows]=await conn.query<mysql.RowDataPacket[]>('SELECT DATABASE() AS name')
+if (economyMode === 'test' && !String(rows[0]?.name ?? '').startsWith(AGENT_TEST_DATABASE_PREFIX)) throw new Error('AGENT_PLUGIN_PAYMENTS_TEST_DATABASE_REQUIRED')
 const ensureColumn = async (table: string, column: string, definition: string) => {
+  const [tables] = await conn.query<mysql.RowDataPacket[]>('SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?', [table])
+  if (tables.length === 0) return
   const [columns] = await conn.query<mysql.RowDataPacket[]>('SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=?', [table, column])
   if (columns.length === 0) await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`)
 }
@@ -51,5 +57,5 @@ await conn.query(`CREATE TABLE IF NOT EXISTS st_agent_plugin_payment_events (
   UNIQUE KEY uk_agent_plugin_payment_event (event_id),
   KEY idx_agent_plugin_payment_event_order (order_id, event_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='插件支付回调与对账幂等事件'`)
-console.log('agent plugin payment schema ready (additive test-only)')
+console.log(`agent plugin payment schema ready (additive; mode=${economyMode})`)
 await conn.end()

@@ -1,4 +1,8 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { SplitText } from 'gsap/SplitText'
+import { useGSAP } from '@gsap/react'
 import { Play } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { WIDE_CONTAINER_CLASS } from '@/lib/layout'
@@ -11,6 +15,8 @@ import { DailyCodeCard } from '@/components/home/DailyCodeCard' // 每日口令�
 import { wbMutation, wbErrorMessage } from '@/lib/wbSession'
 import { SmsCodeRow } from '@/components/auth/SmsCodeRow' // OTP 行共享件（罚单归一：ApplyBeta/Login 同引——发送+冷却+换号守卫内化）
 import type { BetaKind } from '@contracts/betaKinds' // 报名身份枚举跨栈单源（wb#77 票面门户仓同构）
+
+gsap.registerPlugin(ScrollTrigger, SplitText)
 
 const Starfield = lazy(() => import('@/components/home/Starfield'))
 
@@ -144,6 +150,44 @@ export default function HeroSection() {
 
   const scope = useRef<HTMLElement>(null)
 
+  useGSAP(
+    () => {
+      const split = new SplitText('.hero-title-line', { type: 'chars' })
+      const tl = gsap.timeline({ defaults: { ease: 'power4.out' } })
+      tl.from(split.chars, {
+        y: 60,
+        opacity: 0,
+        rotateX: -40,
+        stagger: 0.035,
+        duration: 0.9,
+      })
+        .fromTo(
+          '.hero-hud-sub',
+          { letterSpacing: '0.4em', opacity: 0 },
+          { letterSpacing: '0.18em', opacity: 1, duration: 1.2 },
+          0.2,
+        )
+        .from('.hero-fade', { y: 30, opacity: 0, stagger: 0.15, duration: 0.7, ease: 'power3.out' }, 0.8)
+        .from('.hero-stats', { y: 40, opacity: 0, duration: 0.8, ease: 'power3.out' }, 1.2)
+        .from('.hero-hud-corner', { opacity: 0, duration: 1 }, 0.4)
+
+      // scroll parallax
+      gsap.to('.hero-bg', {
+        yPercent: 15,
+        ease: 'none',
+        scrollTrigger: { trigger: scope.current, start: 'top top', end: 'bottom top', scrub: true },
+      })
+      gsap.to('.hero-content', {
+        yPercent: -30,
+        opacity: 0,
+        ease: 'none',
+        scrollTrigger: { trigger: scope.current, start: 'top top', end: 'bottom top', scrub: true },
+      })
+
+      return () => split.revert()
+    },
+    { scope },
+  )
 
   return (
     <section ref={scope} className="relative flex min-h-[calc(100dvh-4rem)] flex-col overflow-hidden">

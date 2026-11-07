@@ -58,6 +58,27 @@ describe('AgentMarketLiveBanner SSE 与无障碍', () => {
     expect(FakeEventSource.instances).toHaveLength(6)
   })
 
+  it('degraded 后展示最近快照和降级状态，不继续宣称实时已连接', () => {
+    render(<MemoryRouter><AgentMarketLiveBanner /></MemoryRouter>)
+    const source = FakeEventSource.instances[0]
+    act(() => { source.emit('feed', { items: [], feedVersion: 'v2', serverTime: '2026-11-05T00:03:00Z', source: 'mysql' }) })
+    expect(screen.getByText('实时事件流已连接')).toBeTruthy()
+    act(() => { source.emit('degraded', { message: '快照暂时不可用，继续重连' }) })
+    expect(screen.getByText('实时连接中断，展示最近已验证快照并重连')).toBeTruthy()
+    act(() => { vi.advanceTimersByTime(60_000) })
+    expect(FakeEventSource.instances).toHaveLength(1)
+  })
+
+  it('心跳健康后可恢复 live，即使 feedVersion 未变化', () => {
+    render(<MemoryRouter><AgentMarketLiveBanner /></MemoryRouter>)
+    const source = FakeEventSource.instances[0]
+    act(() => { source.emit('feed', { items: [], feedVersion: 'v2', serverTime: '2026-11-05T00:03:00Z', source: 'mysql' }) })
+    act(() => { source.emit('degraded', { message: '快照暂时不可用，继续重连' }) })
+    expect(screen.getByText('实时连接中断，展示最近已验证快照并重连')).toBeTruthy()
+    act(() => { source.emit('heartbeat', { serverTime: '2026-11-05T00:04:00Z', feedVersion: 'v2', degraded: false }) })
+    expect(screen.getByText('实时事件流已连接')).toBeTruthy()
+  })
+
   it('revoked 关闭且永不重连', () => {
     render(<MemoryRouter><AgentMarketLiveBanner /></MemoryRouter>)
     const source = FakeEventSource.instances[0]
@@ -81,4 +102,11 @@ describe('AgentMarketLiveBanner SSE 与无障碍', () => {
     render(<MemoryRouter><AgentMarketLiveBanner /></MemoryRouter>)
     expect(document.querySelector('article')?.getAttribute('aria-live')).toBe('off')
   })
+
+  it('发布与领取 CTA 使用共享路由并保留 tab 参数', () => {
+    render(<MemoryRouter><AgentMarketLiveBanner /></MemoryRouter>)
+    expect(screen.getByRole('link', { name: '发布工作任务' }).getAttribute('href')).toContain('/agent-employment?tab=enterprise')
+    expect(screen.getByRole('link', { name: '领取工作任务' }).getAttribute('href')).toContain('/agent-employment?tab=market')
+  })
+
 })

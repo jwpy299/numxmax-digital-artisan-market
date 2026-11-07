@@ -2,10 +2,10 @@
 # build_desktop_app.sh——桌面端应用打包链（Win10/11 x64）
 # 按需构建仓内前端 → 每壳独立渲染 shell/apiBase preload → 分壳 NSIS → asar 读回 → dl/ 稳定名。
 set -e
-export PATH=${DESKTOP_NODE_BIN:-/usr/local/bin}:$PATH
-WB=${DESKTOP_WB_DIR:?set DESKTOP_WB_DIR} # 正式包仅用 master；候选验收显式传入独立工作树，不混用产物
-DT=${DESKTOP_SOURCE_DIR:?set DESKTOP_SOURCE_DIR} # 桌面源目录：正式包用 master；候选验收显式传入独立工作树，禁止混壳
-PA=${DESKTOP_PORTAL_ADMIN_DIR:?set DESKTOP_PORTAL_ADMIN_DIR}
+export PATH=/opt/node22/bin:$PATH
+WB=${WB:-/opt/numxmax/wb} # 正式包仅用 master；候选验收显式传入独立工作树，不混用产物
+DT=${DT:-/opt/numxmax/desktop} # 桌面源目录：正式包用 master；候选验收显式传入独立工作树，禁止混壳
+PA=/opt/numxmax/portal-admin
 OPS_WEB_CUSTOM=${OPS_WEB:+x}
 OPS_WEB=${OPS_WEB:-$PA/dist/public/ops}
 BUILD_STARTED=$(( $(date +%s) - 2 ))

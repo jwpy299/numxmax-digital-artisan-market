@@ -1,7 +1,14 @@
 import { RuntimeLeaseFenceError, type RuntimeEventMandate } from './runtimeLeaseFence'
+import { AGENT_PLUGIN_PERMISSIONS } from './agentPluginManifest'
 import type { RuntimeEventEnvelope } from './runtimeEventContract'
 
-export const RUNTIME_PLUGIN_PERMISSIONS = new Set(['tasks:read', 'tasks:write', 'evidence:read', 'training:read'])
+export const RUNTIME_PLUGIN_PERMISSIONS = AGENT_PLUGIN_PERMISSIONS
+const EVENT_PERMISSIONS: Record<string, RuntimePluginPermission> = {
+  'tasks.read': 'tasks:read',
+  'tasks.write': 'tasks:write',
+  'evidence.read': 'evidence:read',
+  'training.read': 'training:read',
+}
 export type RuntimePluginPermission = 'tasks:read' | 'tasks:write' | 'evidence:read' | 'training:read'
 export interface RuntimePluginGrant {
   registrationId: number
@@ -34,7 +41,10 @@ export function createRuntimePluginEventAuthorizer(grant: RuntimePluginGrant, ac
   if (!grant.permissions.includes(action)) throw new RuntimeLeaseFenceError('runtime_plugin_permission_denied')
   return (event) => {
     assertRuntimePluginGrant(grant)
-    if (!grant.permissions.includes(action)) throw new RuntimeLeaseFenceError('runtime_plugin_permission_denied')
+    const required = EVENT_PERMISSIONS[event.type as RuntimePluginPermission]
+    if (!required) throw new RuntimeLeaseFenceError('runtime_plugin_event_type_invalid')
+    if (required !== action) throw new RuntimeLeaseFenceError('runtime_plugin_event_action_mismatch')
+    if (!grant.permissions.includes(required)) throw new RuntimeLeaseFenceError('runtime_plugin_permission_denied')
     if (event.tenantId !== grant.tenantId || event.departmentId !== grant.departmentId || event.factoryId !== grant.factoryId) throw new RuntimeLeaseFenceError('runtime_plugin_tenant_mismatch')
     if (event.source !== `plugin:${grant.packageKey}`) throw new RuntimeLeaseFenceError('runtime_plugin_source_mismatch')
   }

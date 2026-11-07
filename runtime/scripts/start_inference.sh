@@ -5,7 +5,7 @@ VER="$1"
 WORK_ROOT="$2"
 [ -n "$VER" ] && [ -n "$WORK_ROOT" ] || { echo "usage: start_inference.sh <version> <work_root>"; exit 1; }
 [[ "$VER" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ ]] || { echo "VER 形态非法"; exit 1; }
-[[ "$WORK_ROOT" == /tmp/numxmax/training-sandbox/* ]] || { echo "WORK_ROOT 不在独立沙箱目录"; exit 1; }
+[[ "$WORK_ROOT" == /opt/numxmax/training-sandbox/* ]] || { echo "WORK_ROOT 不在独立沙箱目录"; exit 1; }
 BASE_DIR="${INFERENCE_BASE_DIR:-$WORK_ROOT/base}"
 ADAPTER_DIR="${INFERENCE_ADAPTER_DIR:-$WORK_ROOT/final}"
 [ -f "$BASE_DIR/config.json" ] || { echo "INFERENCE_BASE_MISSING=$BASE_DIR"; exit 1; }

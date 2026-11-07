@@ -1,10 +1,43 @@
 import { useRef } from 'react'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { useGSAP } from '@gsap/react'
 import { ArrowRight } from 'lucide-react'
 import GlowButton from '@/components/GlowButton'
+
+gsap.registerPlugin(ScrollTrigger)
 
 export default function LifecycleCta() {
   const scope = useRef<HTMLElement>(null)
 
+  useGSAP(
+    () => {
+      const words = gsap.utils.toArray<HTMLElement>('.lc-cta-word')
+      gsap.from(words, {
+        y: 40,
+        opacity: 0,
+        stagger: 0.06,
+        duration: 0.7,
+        ease: 'power3.out',
+        scrollTrigger: { trigger: scope.current, start: 'top 78%' },
+      })
+      gsap.from('.lc-cta-btn', {
+        scale: 0.85,
+        opacity: 0,
+        stagger: 0.12,
+        duration: 0.6,
+        ease: 'back.out(1.8)',
+        scrollTrigger: { trigger: scope.current, start: 'top 72%' },
+      })
+      // slow nebula band drift
+      gsap.to('.lc-cta-band', {
+        backgroundPositionX: '60%',
+        ease: 'none',
+        scrollTrigger: { trigger: scope.current, start: 'top bottom', end: 'bottom top', scrub: true },
+      })
+    },
+    { scope },
+  )
 
   const title = '每一条经验曲线，都值得被延续'
 

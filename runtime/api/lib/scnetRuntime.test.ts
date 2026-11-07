@@ -36,6 +36,16 @@ describe('SCNet 严格推理契约（mock 仅测代码，不作为真实推理�
     const empty = await callScnetInference({ messages: [], fetchImpl: async () => new Response(JSON.stringify({ model: SCNET_MODEL, choices: [] }), { status: 200 }) })
     expect(empty).toMatchObject({ ok: false, reason: 'empty_content' })
   })
+  it('非有限 maxTokens/temperature/timeoutMs 使用安全默认值，不发送 null 或立即超时', async () => {
+    configured()
+    const fetchImpl = vi.fn(async (_input: unknown, _init?: RequestInit) => new Response(JSON.stringify({ id: 'req-finite', model: SCNET_MODEL, choices: [{ message: { content: 'ok' } }], usage: { total_tokens: 1 } }), { status: 200 }))
+    const result = await callScnetInference({ messages: [{ role: 'user', content: 'ping' }], maxTokens: Number.NaN, temperature: Number.POSITIVE_INFINITY, timeoutMs: Number.NaN, fetchImpl: fetchImpl as unknown as typeof fetch })
+    expect(result.ok).toBe(true)
+    const init = fetchImpl.mock.calls[0]?.[1] as RequestInit
+    const body = JSON.parse(String(init.body)) as { max_tokens: number; temperature: number }
+    expect(body.max_tokens).toBe(512)
+    expect(body.temperature).toBe(0.3)
+  })
   it('未配置或自定义到未授权模型时拒绝，不走其他 provider', async () => {
     vi.stubEnv('SCNET_API_KEY', '')
     const missing = await callScnetInference({ messages: [] })

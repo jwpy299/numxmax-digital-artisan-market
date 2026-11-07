@@ -1,4 +1,5 @@
 import { assertRuntimeMandateShape, RuntimeLeaseFenceError, type RuntimeEventMandate } from './runtimeLeaseFence'
+import { parseDbUtc } from './dbUtc'
 
 export interface RuntimeEventEnvelope extends RuntimeEventMandate {
   source: string
@@ -18,7 +19,7 @@ function text(value: unknown, field: string, max = 128): string {
 }
 function isoTime(value: unknown): string {
   const raw = text(value, 'created_at')
-  const time = Date.parse(raw)
+  const time = parseDbUtc(raw)
   if (!Number.isFinite(time)) throw new RuntimeLeaseFenceError('runtime_event_created_at_invalid')
   return new Date(time).toISOString()
 }

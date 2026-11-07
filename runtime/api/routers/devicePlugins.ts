@@ -135,7 +135,7 @@ export function parseDeviceQr(raw: string): DeviceProfile | null {
 // ─── SSRF 闸 ─────────────────────────────────────────────────────────────────
 
 /** 本系统三端公网 IP（设备 endpoint 绝不允许指回我们自己） */
-const OWN_HOSTS = new Set(["192.0.2.10", "192.0.2.11", "192.0.2.12", "example.invalid"]);
+const OWN_HOSTS = new Set(["112.93.116.135", "112.93.116.69", "112.93.116.73", "lingshu-nebulaai.com"]);
 
 /** 规范化 endpoint 为 http base URL 并过 SSRF 闸；违规抛 BAD_REQUEST */
 export function normalizeEndpoint(endpoint: string): string {

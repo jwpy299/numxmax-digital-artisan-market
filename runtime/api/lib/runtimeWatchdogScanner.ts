@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createReadOnlyWatchdogEvidence, type ReadOnlyWatchdogEvidence } from './runtimeEventContract'
 import type { RuntimeLeaseContext } from './runtimeLeaseFence'
 
@@ -20,10 +21,16 @@ export function scanRuntimeWatchdogSnapshots(args: {
   for (const snapshot of args.snapshots) {
     const heartbeat = Date.parse(snapshot.lastHeartbeatAt)
     if (!Number.isFinite(heartbeat)) throw new Error('runtime_watchdog_heartbeat_invalid')
-    const classification = snapshot.lease.status === 'revoked' ? 'lease_revoked' : now - heartbeat > args.heartbeatTimeoutMs ? 'stuck' : null
+    let classification: 'lease_revoked' | 'stuck' | null = null
+    if (snapshot.lease.status === 'closed') continue
+    if (snapshot.lease.status === 'revoked') classification = 'lease_revoked'
+    else if (now - heartbeat > args.heartbeatTimeoutMs) classification = 'stuck'
     if (!classification) continue
     args.emit(createReadOnlyWatchdogEvidence({
-      eventId: `watchdog-${snapshot.lease.leaseId}-${snapshot.lease.leaseEpoch}`,
+      eventId: (() => {
+        const raw = `watchdog-${snapshot.lease.leaseId}-${snapshot.lease.leaseEpoch}`
+        return raw.length <= 128 ? raw : `watchdog-${createHash('sha256').update(raw).digest('hex').slice(0, 119)}`
+      })(),
       tenantId: snapshot.lease.tenantId, factoryId: snapshot.lease.factoryId,
       departmentId: snapshot.lease.departmentId, taskId: snapshot.lease.taskId,
       leaseId: snapshot.lease.leaseId, leaseEpoch: snapshot.lease.leaseEpoch, workerId: snapshot.lease.workerId,

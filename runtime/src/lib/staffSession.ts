@@ -29,6 +29,12 @@ export interface StaffSession {
 
 const STAFF_SESSION_EVENT = "staff-session-changed";
 
+function broadcastStaffSessionChange(): void {
+  try { window.dispatchEvent(new Event(STAFF_SESSION_EVENT)) } catch (error) {
+    console.warn('[staff-session] broadcast failed:', error instanceof Error ? error.name : 'unknown')
+  }
+}
+
 export function loadStaffSession(): StaffSession | null {
   try {
     const raw = localStorage.getItem(STAFF_AUTH_STORAGE_KEY);
@@ -73,7 +79,7 @@ export function saveStaffSession(
       error instanceof Error ? error.name : "unknown",
     );
     const cleared = clearStaffAuthStorage();
-    window.dispatchEvent(new Event(STAFF_SESSION_EVENT));
+    broadcastStaffSessionChange();
     return {
       ok: false,
       error: cleared
@@ -81,13 +87,14 @@ export function saveStaffSession(
         : `${AUTH_SESSION_PERSIST_FAIL_MESSAGE}（原会话清除结果未知）`,
     };
   }
-  window.dispatchEvent(new Event(STAFF_SESSION_EVENT));
+  broadcastStaffSessionChange();
   return { ok: true };
 }
 
 export function clearStaffSession(): boolean {
   const cleared = clearStaffAuthStorage();
-  if (cleared) window.dispatchEvent(new Event(STAFF_SESSION_EVENT));
+  // 存储删除失败也必须让监听者进入未登录态；返回值只表达物理清除结果。
+  broadcastStaffSessionChange();
   return cleared;
 }
 
@@ -107,7 +114,12 @@ export function useStaffSession() {
   }, []);
 
   const save = useCallback((s: StaffSession) => saveStaffSession(s), []);
-  const clear = useCallback(() => clearStaffSession(), []);
+  const clear = useCallback(() => {
+    const cleared = clearStaffSession();
+    // 即使 removeItem 失败而 getItem 仍可读，也绝不在当前界面恢复旧身份。
+    setSession(null);
+    return cleared;
+  }, []);
   return { session, save, clear };
 }
 

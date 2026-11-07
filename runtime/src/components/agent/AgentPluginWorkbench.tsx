@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Download, Package, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
 import { callWb, useWbQuery, wbErrorMessage, type WbSession } from '@/lib/wbSession'
 import { savePluginArtifact } from '@/lib/agentPluginDownload'
@@ -26,8 +26,17 @@ export default function AgentPluginWorkbench(props: {
   const [error, setError] = useState<string | null>(null)
   const entitlementByPackage = useMemo(() => new Map((mine.data?.entitlements ?? []).map((item) => [item.packageId, item])), [mine.data])
   const [retry, setRetry] = useState<(() => void) | null>(null)
+  const subscriptionKeys = useRef(new Map<string, string>())
   const [payment, setPayment] = useState<PaymentState | null>(null)
   const installedByPackage = useMemo(() => new Map((mine.data?.installs ?? []).filter((item) => item.status === 'installed').map((item) => [item.packageId, item])), [mine.data])
+
+  useEffect(() => {
+    setRetry(null)
+    setPayment(null)
+    setError(null)
+    setNotice(null)
+    subscriptionKeys.current.clear()
+  }, [registrationId, session.token])
 
   async function run(key: string, action: () => Promise<string>): Promise<void> {
     if (busy) return
@@ -68,10 +77,20 @@ export default function AgentPluginWorkbench(props: {
   })
 
   const subscribe = (pkg: PackageRow) => run(`subscribe-${pkg.id}`, async () => {
-    const created = await callWb('mutation', 'agentPluginPayments.create', session, { registrationId: requireRegistration(), packageId: pkg.id, idempotencyKey: `plugin-subscription-${crypto.randomUUID()}` }) as { orderNo: string }
-    const qr = await callWb('query', 'agentPluginPayments.qr', session, { orderNo: created.orderNo }) as PaymentState
-    setPayment(qr)
-    return `${pkg.name} 的 30 天订阅订单已创建，二维码已绑定订单 ${created.orderNo}`
+    const selectedRegistrationId = requireRegistration()
+    const scope = `${selectedRegistrationId}:${pkg.id}`
+    const idempotencyKey = subscriptionKeys.current.get(scope) ?? `plugin-subscription-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`
+    subscriptionKeys.current.set(scope, idempotencyKey)
+    try {
+      const created = await callWb('mutation', 'agentPluginPayments.create', session, { registrationId: selectedRegistrationId, packageId: pkg.id, idempotencyKey }) as { orderNo: string }
+      const qr = await callWb('query', 'agentPluginPayments.qr', session, { orderNo: created.orderNo }) as PaymentState
+      setPayment(qr)
+      subscriptionKeys.current.delete(scope)
+      return `${pkg.name} 的 ${pkg.durationDays} 天订阅订单已创建，二维码已绑定订单 ${created.orderNo}`
+    } catch (error) {
+      subscriptionKeys.current.set(scope, idempotencyKey)
+      throw error
+    }
   })
   const refreshPayment = () => run('payment-status', async () => {
     if (!payment) throw new Error('请先创建插件订阅订单')
@@ -90,7 +109,7 @@ export default function AgentPluginWorkbench(props: {
         <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line-subtle px-3 py-2 text-xs text-ink-faint" onClick={() => { setError(null); void packages.refetch(); void mine.refetch() }}><RefreshCw className="h-4 w-4" />刷新与回读</button>
       </div>
       <label className="mt-4 block text-xs text-ink-secondary">选择训练达标 Agent
-        <select className="mt-2 w-full rounded-lg border border-line-subtle bg-void px-3 py-2 text-sm" value={registrationId} onChange={(event) => onRegistrationChange(Number(event.target.value))}>
+        <select className="mt-2 w-full rounded-lg border border-line-subtle bg-void px-3 py-2 text-sm" value={registrationId} disabled={Boolean(busy)} onChange={(event) => onRegistrationChange(Number(event.target.value))}>
           <option value={0}>请选择 Agent</option>
           {registrations.map((item) => <option key={item.id} value={item.id}>{item.agentName} · {item.registrationNo}</option>)}
         </select>
@@ -106,7 +125,7 @@ export default function AgentPluginWorkbench(props: {
         <img src={`data:image/png;base64,${payment.pngBase64}`} alt={`插件订阅订单 ${payment.orderNo} 的微信支付二维码`} className="h-40 w-40 rounded-lg bg-white p-2" />
         <div className="min-w-0 flex-1 text-xs text-ink-secondary">
           <h3 className="text-sm font-semibold text-ink-primary">微信 Native 订阅二维码</h3>
-          <p className="mt-2">金额：¥{(payment.binding.amountCents / 100).toFixed(2)} · 期限：{payment.binding.durationDays} 天（一个月）</p>
+          <p className="mt-2">金额：¥{(payment.binding.amountCents / 100).toFixed(2)} · 期限：{payment.binding.durationDays} 天</p>
           <p className="mt-1 break-all font-mono">订单：{payment.orderNo}</p>
           <p className="mt-1 break-all font-mono">out_trade_no：{payment.binding.outTradeNo}</p>
           <p className="mt-1">registration #{payment.binding.registrationId} · package #{payment.binding.packageId} · factory #{payment.binding.factoryId}</p>
@@ -136,7 +155,7 @@ export default function AgentPluginWorkbench(props: {
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="button" disabled={Boolean(busy) || !registrationId || Boolean(installed) || !operable} onClick={() => void install(pkg)} className="rounded-lg bg-pulse-cyan px-3 py-2 text-xs font-semibold text-void disabled:opacity-40">{installed ? '已安装' : '安装'}</button>
             <button type="button" disabled={Boolean(busy) || !registrationId || !operable} onClick={() => void download(pkg)} className="inline-flex items-center gap-1 rounded-lg border border-pulse-cyan/40 px-3 py-2 text-xs text-pulse-cyan disabled:opacity-40"><Download className="h-3 w-3" />验签下载</button>
-            {!entitled && pkg.priceCents > 0 && <button type="button" disabled={Boolean(busy) || !registrationId || pkg.signatureVerified !== true} onClick={() => void subscribe(pkg)} className="rounded-lg border border-forge-amber/50 px-3 py-2 text-xs text-forge-amber disabled:opacity-40">订阅30天 ¥{(pkg.priceCents / 100).toFixed(2)}</button>}
+            {!entitled && pkg.priceCents > 0 && <button type="button" disabled={Boolean(busy) || !registrationId || pkg.signatureVerified !== true} onClick={() => void subscribe(pkg)} className="rounded-lg border border-forge-amber/50 px-3 py-2 text-xs text-forge-amber disabled:opacity-40">订阅{pkg.durationDays}天 ¥{(pkg.priceCents / 100).toFixed(2)}</button>}
             {installed && <><button type="button" disabled={Boolean(busy)} onClick={() => void rollback(installed)} className="inline-flex items-center gap-1 rounded-lg border border-forge-amber/40 px-3 py-2 text-xs text-forge-amber"><RotateCcw className="h-3 w-3" />回滚</button><button type="button" disabled={Boolean(busy)} onClick={() => void uninstall(installed)} className="inline-flex items-center gap-1 rounded-lg border border-line-subtle px-3 py-2 text-xs text-ink-faint"><Trash2 className="h-3 w-3" />卸载</button></>}
           </div>
         </article>

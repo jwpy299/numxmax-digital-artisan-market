@@ -494,5 +494,3 @@ export default function AdminCockpit() {
     </div>
   )
 }
-
-

@@ -21,6 +21,10 @@ import { withAgentWageTx, withEnterpriseEscrowTx } from "./tokenLedger";
 import { withAgentTokenWalletTx, readAgentTokenBalance, type AgentTokenWalletDb } from "./agentTokenWallet";
 import { AGENT_EXCHANGE_SANDBOX_BIZ_TYPE, AGENT_REGISTRATION_FEE_BIZ_TYPE, AGENT_REGISTRATION_REFUND_BIZ_TYPE, AGENT_RETAKE_FEE_BIZ_TYPE } from "./walletFlow";
 import { normalizePublicDisplayName } from '../lib/agentMarketPublic'
+import QRCode from 'qrcode'
+import { parseDbUtc, toIsoOrNull } from '../lib/dbUtc'
+import { createWechatNativeOrder, createWechatRefund, queryWechatOrder, queryWechatRefund, wechatPaymentsEnabled, wechatPayloadSha256, WechatApiError } from '../lib/wechatPayV2'
+import { invalidateAgentMarketLiveFeedCache } from './agentMarketLive'
 import { AGENT_EXCHANGE_DAILY_MAX, AGENT_NAME_MAX_LENGTH, AGENT_NAME_MIN_LENGTH, HEADCOUNT_MAX, HEADCOUNT_MIN, JOB_DESCRIPTION_MAX_LENGTH, JOB_DESCRIPTION_MIN_LENGTH, JOB_TITLE_MAX_LENGTH, JOB_TITLE_MIN_LENGTH, JOB_TOKEN_AMOUNT_MAX, JOB_TOKEN_AMOUNT_MIN, MIN_DELIVERABLE_LENGTH, MIN_END_EMPLOYMENT_REASON_LENGTH, END_EMPLOYMENT_REASON_MAX_LENGTH, MIN_TASK_CANCEL_REASON_LENGTH, TASK_CANCEL_REASON_MAX_LENGTH, MIN_REVIEW_NOTE_LENGTH, REQUIREMENTS_MAX_LENGTH, REVIEW_NOTE_MAX_LENGTH, SCORE_MAX, SCORE_MIN, TASK_BRIEF_MAX_LENGTH, TASK_BRIEF_MIN_LENGTH, TRAINING_DELIVERABLE_MAX_LENGTH, WORK_DELIVERABLE_MAX_LENGTH } from "../../contracts/agentEmploymentRules";
 import {
   MAX_TRAINING_ATTEMPTS,
@@ -55,8 +59,11 @@ type Row = Record<string, unknown>;
 interface RegistrationOrderView {
   registrationId: number; registrationNo: string; agentKey: string; status: string;
   orderNo: string; orderStatus: string; amountCents: number; amountJobTokens: number; environment: string; currency: string;
+  outTradeNo?: string | null; codeUrl?: string | null; expiresAt?: unknown; createdAt?: unknown; orderCycle?: number
 }
 interface RetakeOrderView { orderNo: string; attemptNo: number; amountCents: number; amountJobTokens: number; status: string; environment: string }
+interface RealRegistrationOrderResult extends RegistrationOrderView { codeUrl: string; outTradeNo: string; already: boolean; realPayment: true }
+interface RealRetakeOrderResult { orderNo: string; registrationId: number; attemptNo: number; amountCents: number; amountJobTokens: number; status: string; environment: string; outTradeNo: string; codeUrl: string; currency: string; already: boolean; realPayment: true; expiresAt?: string | null }
 interface JobCreatedView { id: number; jobNo: string; status: string }
 interface TaskCreatedView { id: number; taskNo: string; status: string }
 interface ApplicationView { id: number; status: string }
@@ -112,14 +119,15 @@ const AGENT_EMPLOYMENT_TABLES = [
   "st_agent_registrations", "st_agent_training_cycles", "st_agent_training_tasks",
   "st_agent_payment_orders", "st_agent_payment_events", "st_agent_payment_refunds",
   "st_agent_jobs", "st_agent_job_applications", "st_agent_employments",
-  "st_agent_work_tasks", "st_agent_task_claims", "st_agent_wage_ledger",
+  "st_agent_work_tasks", "st_agent_task_claims", "st_agent_wage_ledger", "st_agent_task_visibility_audit", "st_agent_showcase_visibility_audit",
 ] as const;
 const AGENT_EMPLOYMENT_TEST_TABLES = ["st_agent_token_wallets", "st_agent_token_exchanges"] as const;
 function requiredAgentEmploymentTables(): readonly string[] {
   return isAgentTestEconomy() ? [...AGENT_EMPLOYMENT_TABLES, ...AGENT_EMPLOYMENT_TEST_TABLES] : AGENT_EMPLOYMENT_TABLES;
 }
 const AGENT_EMPLOYMENT_REQUIRED_COLUMNS: ReadonlyArray<readonly [string, readonly string[]]> = [
-  ["st_agent_work_tasks", ["department_id", "escrow_job_tokens", "cancel_reason", "cancelled_by", "cancelled_at"]],
+  ["st_agent_work_tasks", ["department_id", "escrow_job_tokens", "cancel_reason", "cancelled_by", "cancelled_at", "public_feed", "public_actor_name"]],
+  ["st_agent_registrations", ["showcase_opt_in", "public_display_name"]],
   ["st_agent_task_claims", ["is_active", "active_task_id"]],
   ["st_agent_employments", ["ended_by", "end_reason"]],
   ["st_agent_wage_ledger", ["wallet_owner_type", "wallet_owner_id"]],
@@ -129,7 +137,7 @@ const AGENT_EMPLOYMENT_REQUIRED_COLUMNS: ReadonlyArray<readonly [string, readonl
 ];
 const AGENT_EMPLOYMENT_REQUIRED_COLUMN_COUNT = AGENT_EMPLOYMENT_REQUIRED_COLUMNS.reduce((total, [, columns]) => total + columns.length, 0);
 let agentEmploymentSchemaReady = false;
-async function assertAgentEmploymentSchemaReady(db: Db): Promise<void> {
+export async function assertAgentEmploymentSchemaReady(db: Db): Promise<void> {
   if (agentEmploymentSchemaReady) return;
   const result = rows(await db.execute(sql`
     SELECT COUNT(*) AS count FROM information_schema.tables
@@ -146,6 +154,11 @@ async function assertAgentEmploymentSchemaReady(db: Db): Promise<void> {
     WHERE table_schema=DATABASE() AND table_name='st_agent_task_claims'
       AND index_name='uk_agent_claim_active' AND column_name='active_task_id'`))[0];
   if (asNumber(generatedIndex?.count ?? 0) !== 1) throw new Error("agent_employment_schema_index_not_ready");
+  const feedIndex = rows(await db.execute(sql`
+    SELECT COUNT(*) AS count FROM information_schema.statistics
+    WHERE table_schema=DATABASE() AND table_name='st_agent_work_tasks'
+      AND index_name='idx_agent_work_public_feed' AND column_name='public_feed'`))[0];
+  if (asNumber(feedIndex?.count ?? 0) !== 1) throw new Error("agent_employment_schema_index_not_ready");
   agentEmploymentSchemaReady = true;
 }
 function isDuplicate(err: unknown): boolean {
@@ -195,7 +208,8 @@ async function loadRegistrationOrder(db: Db, key: string, uid: number): Promise<
   return rows<RegistrationOrderView>(await db.execute(sql`
     SELECT r.id AS registrationId, r.registration_no AS registrationNo, r.agent_key AS agentKey, r.status,
            o.order_no AS orderNo, o.status AS orderStatus, o.amount_cents AS amountCents,
-           o.amount_job_tokens AS amountJobTokens, o.environment, o.currency AS currency
+           o.amount_job_tokens AS amountJobTokens, o.environment, o.currency AS currency,
+           o.out_trade_no AS outTradeNo, o.code_url AS codeUrl, o.expires_at AS expiresAt, o.created_at AS createdAt, o.order_cycle AS orderCycle
     FROM st_agent_registrations r JOIN st_agent_payment_orders o ON o.registration_id=r.id AND o.kind='registration'
     WHERE r.idempotency_key=${key} AND r.owner_user_id=${uid} AND r.status<>'abandoned' LIMIT 1`))[0];
 }
@@ -215,6 +229,10 @@ function sandboxPaymentAvailable(): boolean {
     && process.env.PAYMENT_SANDBOX_ENABLED === "true"
     && (process.env.PAYMENT_SANDBOX_SECRET ?? "").length >= 16;
 }
+function wechatTrainingPaymentAvailable(): boolean {
+  return !isAgentTestEconomy() && wechatPaymentsEnabled()
+}
+
 function sandboxSecret(): string {
   assertSandboxDeploymentAllowed();
   if (!sandboxPaymentAvailable()) precondition("支付沙箱未启用；不会模拟扣款或退款");
@@ -277,14 +295,14 @@ async function releaseDailyTasks(db: Db, cycleId: number): Promise<number> {
   return affected(inserted);
 }
 
-async function queueRegistrationRefund(db: Db, registrationId: number, reason: "qualified" | "disqualified"): Promise<void> {
+export async function queueRegistrationRefund(db: Db, registrationId: number, reason: "qualified" | "disqualified"): Promise<void> {
   const registration = rows(await db.execute(sql`
     SELECT id, status FROM st_agent_registrations WHERE id=${registrationId} FOR UPDATE`))[0];
   if (!registration || !["qualified", "disqualified"].includes(String(registration.status))) return;
   const order = rows(await db.execute(sql`
-    SELECT id, status, environment, amount_job_tokens AS amountJobTokens FROM st_agent_payment_orders
+    SELECT id, status, environment, amount_cents AS amountCents, amount_job_tokens AS amountJobTokens FROM st_agent_payment_orders
     WHERE registration_id=${registrationId} AND kind='registration' AND attempt_no=1 LIMIT 1 FOR UPDATE`))[0];
-  if (!order || String(order.environment) !== "sandbox") {
+  if (!order) {
     await db.execute(sql`UPDATE st_agent_registrations SET fee_status='refund_failed' WHERE id=${registrationId}`);
     return;
   }
@@ -293,6 +311,29 @@ async function queueRegistrationRefund(db: Db, registrationId: number, reason: "
     return;
   }
   if (String(order.status) !== "paid" && String(order.status) !== "refund_pending") {
+    await db.execute(sql`UPDATE st_agent_registrations SET fee_status='refund_failed' WHERE id=${registrationId}`);
+    return;
+  }
+  if (String(order.environment) === "production") {
+    if (asNumber(order.amountCents) !== REGISTRATION_FEE_CENTS) {
+      await db.execute(sql`UPDATE st_agent_registrations SET fee_status='refund_failed' WHERE id=${registrationId}`);
+      return;
+    }
+    await db.execute(sql`
+      INSERT INTO st_agent_payment_refunds
+        (refund_no, registration_id, original_order_id, amount_cents, amount_job_tokens, reason, environment, status)
+      VALUES
+        (${numberId("ARF")}, ${registrationId}, ${Number(order.id)}, ${REGISTRATION_FEE_CENTS}, 0, ${reason}, 'production', 'pending')
+      ON DUPLICATE KEY UPDATE registration_id=VALUES(registration_id)`);
+    if (String(order.status) === "paid") {
+      await db.execute(sql`UPDATE st_agent_payment_orders SET status='refund_pending' WHERE id=${Number(order.id)} AND status='paid'`);
+    }
+    await db.execute(sql`
+      UPDATE st_agent_registrations SET fee_status='refund_pending'
+      WHERE id=${registrationId} AND fee_status IN ('paid','refund_pending')`);
+    return;
+  }
+  if (String(order.environment) !== "sandbox") {
     await db.execute(sql`UPDATE st_agent_registrations SET fee_status='refund_failed' WHERE id=${registrationId}`);
     return;
   }
@@ -404,6 +445,112 @@ export async function settleSandboxRefunds(registrationId?: number): Promise<voi
       }
       // 原始驱动错误仅留服务端日志；API 与数据面只暴露上面的稳定错误码。
       console.error(`[agent-payment] refund ${Number(item.id)} deferred (${code}):`, err);
+    }
+  }
+}
+
+export async function settleWechatRefunds(registrationId?: number): Promise<void> {
+  if (!wechatTrainingPaymentAvailable()) return
+  const db = getDb()
+  const registrationFilter = isNil(registrationId) ? sql`1=1` : sql`registration_id=${registrationId}`
+  const pending = rows(await db.execute(sql`
+    SELECT id, registration_id AS registrationId FROM st_agent_payment_refunds
+    WHERE environment='production' AND ${registrationFilter}
+      AND (
+        status IN ('pending','processing')
+        OR (
+          status='failed'
+          AND (failure_code IS NULL OR failure_code NOT IN (${sql.join([...PERMANENT_REFUND_FAILURE_SET].map((code) => sql`${code}`), sql`,`)}))
+          AND attempt_count<${REFUND_MAX_ATTEMPTS}
+          AND (next_retry_at IS NULL OR next_retry_at<=NOW())
+        )
+      )
+    ORDER BY id ASC LIMIT ${REFUND_SETTLEMENT_BATCH_LIMIT}`))
+  for (const item of pending) {
+    const refund = rows(await db.execute(sql`
+      SELECT r.*, o.status AS orderStatus, o.out_trade_no AS outTradeNo, o.transaction_id AS transactionId,
+             o.provider_ref AS providerRef, o.amount_cents AS orderAmountCents
+      FROM st_agent_payment_refunds r JOIN st_agent_payment_orders o ON o.id=r.original_order_id
+      WHERE r.id=${Number(item.id)} LIMIT 1`))[0]
+    if (!refund || String(refund.environment) !== 'production') continue
+    if (String(refund.orderStatus) === 'refunded') {
+      await db.execute(sql`UPDATE st_agent_payment_refunds SET status='succeeded', processed_at=NOW(), failure_code=NULL, next_retry_at=NULL WHERE id=${Number(refund.id)}`)
+      await db.execute(sql`UPDATE st_agent_registrations SET fee_status='refunded' WHERE id=${Number(refund.registration_id)} AND status IN ('qualified','disqualified')`)
+      continue
+    }
+    if (!['paid', 'refund_pending'].includes(String(refund.orderStatus))) {
+      await db.execute(sql`UPDATE st_agent_payment_refunds SET status='failed', failure_code='registration_refund_origin_not_paid', processed_at=NOW(), next_retry_at=NULL WHERE id=${Number(refund.id)}`)
+      await db.execute(sql`UPDATE st_agent_registrations SET fee_status='refund_failed' WHERE id=${Number(refund.registration_id)} AND fee_status='refund_pending'`)
+      continue
+    }
+    if (Number(refund.amount_cents) !== REGISTRATION_FEE_CENTS || Number(refund.orderAmountCents) !== REGISTRATION_FEE_CENTS) {
+      await db.execute(sql`UPDATE st_agent_payment_refunds SET status='failed', failure_code='registration_refund_amount_invalid', processed_at=NOW(), next_retry_at=NULL WHERE id=${Number(refund.id)}`)
+      await db.execute(sql`UPDATE st_agent_registrations SET fee_status='refund_failed' WHERE id=${Number(refund.registration_id)} AND fee_status='refund_pending'`)
+      continue
+    }
+    try {
+      let refundId = String(refund.provider_ref ?? '')
+      if (!refundId) {
+        const accepted = await createWechatRefund({
+          outTradeNo: String(refund.outTradeNo),
+          outRefundNo: String(refund.refund_no),
+          totalFee: REGISTRATION_FEE_CENTS,
+          refundFee: REGISTRATION_FEE_CENTS,
+          transactionId: String(refund.transactionId ?? refund.providerRef),
+        })
+        refundId = String(accepted.refund_id)
+      }
+      await db.execute(sql`
+        UPDATE st_agent_payment_refunds
+        SET status='processing', provider_ref=${refundId}, failure_code=NULL,
+            next_retry_at=DATE_ADD(NOW(), INTERVAL 5 MINUTE), processed_at=NOW()
+        WHERE id=${Number(refund.id)} AND status IN ('pending','processing','failed')`)
+      const query = await queryWechatRefund(String(refund.refund_no))
+      const status = String(query.refund_status_0 ?? '')
+      if (status === 'SUCCESS') {
+        const successId = String(query.refund_id_0 ?? refundId)
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`
+            UPDATE st_agent_payment_refunds
+            SET status='succeeded', provider_ref=${successId}, failure_code=NULL, attempt_count=0,
+                next_retry_at=NULL, processed_at=NOW()
+            WHERE id=${Number(refund.id)} AND status IN ('pending','processing','failed')`)
+          await tx.execute(sql`
+            UPDATE st_agent_payment_orders SET status='refunded', refunded_at=NOW()
+            WHERE id=${Number(refund.original_order_id)} AND status IN ('paid','refund_pending')`)
+          await tx.execute(sql`
+            UPDATE st_agent_registrations SET fee_status='refunded'
+            WHERE id=${Number(refund.registration_id)} AND status IN ('qualified','disqualified')`)
+        })
+      } else if (status === 'PROCESSING') {
+        await db.execute(sql`
+          UPDATE st_agent_payment_refunds SET status='processing', provider_ref=${String(query.refund_id_0 ?? refundId)},
+              failure_code=NULL, next_retry_at=DATE_ADD(NOW(), INTERVAL 5 MINUTE), processed_at=NOW()
+          WHERE id=${Number(refund.id)}`)
+      } else {
+        const failureCode = status === 'REFUNDCLOSE' ? 'registration_refund_closed' : status === 'CHANGE' ? 'registration_refund_account_abnormal' : 'registration_refund_transient_failure'
+        const nextAttempt = Number(refund.attempt_count ?? 0) + 1
+        await db.execute(sql`
+          UPDATE st_agent_payment_refunds
+          SET status='failed', failure_code=${failureCode}, attempt_count=${nextAttempt},
+              next_retry_at=${PERMANENT_REFUND_FAILURE_SET.has(failureCode) ? null : sql`DATE_ADD(NOW(), INTERVAL ${Math.min(60, 5 * nextAttempt)} MINUTE)`}, processed_at=NOW()
+          WHERE id=${Number(refund.id)}`)
+        if (PERMANENT_REFUND_FAILURE_SET.has(failureCode)) {
+          await db.execute(sql`UPDATE st_agent_registrations SET fee_status='refund_failed' WHERE id=${Number(refund.registration_id)} AND fee_status='refund_pending'`)
+        }
+      }
+    } catch (error) {
+      const failureCode = normalizeRefundFailureCode(error)
+      const nextAttempt = Number(refund.attempt_count ?? 0) + 1
+      await db.execute(sql`
+        UPDATE st_agent_payment_refunds
+        SET status='failed', failure_code=${failureCode}, attempt_count=${nextAttempt},
+            next_retry_at=DATE_ADD(NOW(), INTERVAL ${Math.min(60, 5 * nextAttempt)} MINUTE), processed_at=NOW()
+        WHERE id=${Number(refund.id)} AND status IN ('pending','processing','failed')`)
+      if (nextAttempt >= REFUND_MAX_ATTEMPTS) {
+        await db.execute(sql`UPDATE st_agent_registrations SET fee_status='refund_failed' WHERE id=${Number(refund.registration_id)} AND fee_status='refund_pending'`)
+      }
+      console.error(`[agent-payment] wechat refund ${Number(refund.id)} deferred (${failureCode}):`, error)
     }
   }
 }
@@ -557,41 +704,48 @@ async function readCycleScores(db: Db, cycleId: number): Promise<Record<string, 
 }
 
 async function cancelExpiredOpenTasks(db: Db): Promise<{ cancelled: number; failed: number }> {
-  const candidates = rows(await db.execute(sql`
-    SELECT id, factory_id AS factoryId
-    FROM st_agent_work_tasks
-    WHERE deadline_at IS NOT NULL AND deadline_at<=NOW()
-      AND (status IN ('open','claimed','rejected') OR (status='submitted' AND deadline_at<=DATE_SUB(NOW(), INTERVAL ${WORK_REVIEW_GRACE_DAYS} DAY)))
-    ORDER BY id ASC LIMIT 200`));
   let cancelled = 0;
   let failed = 0;
-  for (const item of candidates) {
-    try {
-      const cancelledThis = await withEnterpriseEscrowTx(db, async (dbtx, escrow): Promise<boolean> => {
-        const taskId = Number(item.id);
-        // 与领取、提交、复核和重开统一 task→claim 锁序。
-        const current = rows(await dbtx.execute(sql`SELECT status, escrow_job_tokens AS escrowJobTokens,
-      (status IN ('open','claimed','rejected') AND deadline_at<=NOW()) OR (status='submitted' AND deadline_at<=DATE_SUB(NOW(), INTERVAL ${WORK_REVIEW_GRACE_DAYS} DAY)) AS expired FROM st_agent_work_tasks WHERE id=${taskId} FOR UPDATE`))[0];
-        if (!current || !["open", "claimed", "rejected", "submitted"].includes(String(current.status)) || !asBool(current.expired)) return false;
-        await dbtx.execute(sql`
-          SELECT id FROM st_agent_task_claims WHERE task_id=${taskId} AND is_active=1 AND status IN ('claimed','rejected','submitted') LIMIT 1 FOR UPDATE`);
-        const cancelReason = String(current.status) === 'submitted' ? 'review_sla_expired' : 'deadline_expired';
-        await dbtx.execute(sql`
-          UPDATE st_agent_task_claims SET review_note=IF(status='submitted', ${cancelReason}, review_note),
-            status='revoked', is_active=0, version=version+1
-          WHERE task_id=${taskId} AND is_active=1 AND status IN ('claimed','rejected','submitted')`);
-        await escrow.releaseEnterpriseEscrowWith(Number(item.factoryId), taskId, asNumber(current.escrowJobTokens));
-        const changed = affected(await dbtx.execute(sql`
-          UPDATE st_agent_work_tasks SET status='cancelled', cancel_reason=${cancelReason}, cancelled_at=NOW()
-          WHERE id=${taskId} AND status IN ('open','claimed','rejected','submitted')`));
-        if (changed !== 1) conflict("任务已被其他流程处理");
-        return true;
-      });
-      if (cancelledThis) cancelled += 1;
-    } catch (err) {
-      failed += 1;
-      console.error(`[agent-work] expired task ${Number(item.id)} cancel failed:`, (err as { code?: string })?.code ?? "task_cancel_failed");
+  let lastTaskId = 0;
+  for (;;) {
+    const candidates = rows(await db.execute(sql`
+      SELECT id, factory_id AS factoryId
+      FROM st_agent_work_tasks
+      WHERE id>${lastTaskId} AND deadline_at IS NOT NULL AND deadline_at<=NOW()
+        AND (status IN ('open','claimed','rejected') OR (status='submitted' AND deadline_at<=DATE_SUB(NOW(), INTERVAL ${WORK_REVIEW_GRACE_DAYS} DAY)))
+      ORDER BY id ASC LIMIT 200`));
+    if (candidates.length === 0) break;
+    for (const item of candidates) {
+      try {
+        const cancelledThis = await withEnterpriseEscrowTx(db, async (dbtx, escrow): Promise<boolean> => {
+          const taskId = Number(item.id);
+          // 与领取、提交、复核和重开统一 task→claim 锁序。
+          const current = rows(await dbtx.execute(sql`SELECT status, escrow_job_tokens AS escrowJobTokens,
+        (status IN ('open','claimed','rejected') AND deadline_at<=NOW()) OR (status='submitted' AND deadline_at<=DATE_SUB(NOW(), INTERVAL ${WORK_REVIEW_GRACE_DAYS} DAY)) AS expired FROM st_agent_work_tasks WHERE id=${taskId} FOR UPDATE`))[0];
+          if (!current || !["open", "claimed", "rejected", "submitted"].includes(String(current.status)) || !asBool(current.expired)) return false;
+          await dbtx.execute(sql`
+            SELECT id FROM st_agent_task_claims WHERE task_id=${taskId} AND is_active=1 AND status IN ('claimed','rejected','submitted') LIMIT 1 FOR UPDATE`);
+          const cancelReason = String(current.status) === 'submitted' ? 'review_sla_expired' : 'deadline_expired';
+          await dbtx.execute(sql`
+            UPDATE st_agent_task_claims SET review_note=IF(status='submitted', ${cancelReason}, review_note),
+              status='revoked', is_active=0, version=version+1
+            WHERE task_id=${taskId} AND is_active=1 AND status IN ('claimed','rejected','submitted')`);
+          await escrow.releaseEnterpriseEscrowWith(Number(item.factoryId), taskId, asNumber(current.escrowJobTokens));
+          const changed = affected(await dbtx.execute(sql`
+            UPDATE st_agent_work_tasks SET status='cancelled', cancel_reason=${cancelReason}, cancelled_at=NOW()
+            WHERE id=${taskId} AND status IN ('open','claimed','rejected','submitted')`));
+          if (changed !== 1) conflict("任务已被其他流程处理");
+          return true;
+        });
+        if (cancelledThis) cancelled += 1;
+      } catch (err) {
+        failed += 1;
+        console.error(`[agent-work] expired task ${Number(item.id)} cancel failed:`, (err as { code?: string })?.code ?? "task_cancel_failed");
+      }
     }
+    // 失败任务留给下一轮显式重试，但本轮游标必须越过它们，不能饿死后续过期任务。
+    lastTaskId = Number(candidates[candidates.length - 1].id);
+    if (candidates.length < 200) break;
   }
   return { cancelled, failed };
 }
@@ -604,15 +758,16 @@ export async function runAgentTrainingSweep(): Promise<{ scanned: number; releas
   let released = 0;
   let finalized = 0;
   let failedCycles = 0;
+  let lastCycleId = 0;
   for (;;) {
-    if (scanned >= 200) break; // 单轮最多 200 个周期，防止全表长扫。
     const active = rows(await db.execute(sql`
       SELECT id, NOW() > ends_at AS overdue,
              NOW() > DATE_ADD(ends_at, INTERVAL ${TRAINING_REVIEW_GRACE_DAYS} DAY) AS reviewExpired
-      FROM st_agent_training_cycles WHERE status IN ('active','reviewing')
+      FROM st_agent_training_cycles WHERE status IN ('active','reviewing') AND id>${lastCycleId}
       ORDER BY id ASC LIMIT 200`));
     if (active.length === 0) break;
     scanned += active.length;
+    lastCycleId = Number(active[active.length - 1].id);
     for (const item of active) {
       const cycleId = Number(item.id);
       try {
@@ -647,12 +802,16 @@ export async function runAgentTrainingSweep(): Promise<{ scanned: number; releas
         console.error(`[agent-training] cycle ${cycleId} sweep failed:`, (err as { code?: string })?.code ?? "cycle_sweep_failed");
       }
     }
-    // 只有完整消费当前批次后才能结束 keyset 分页；不得在 per-cycle 循环内提前 break。
+    // 只有完整消费当前批次后才能结束 keyset 分页；游标推进保证超过 200 个活动周期也不会饿死高 id 周期。
     if (active.length < 200) break;
   }
   if (sandboxPaymentAvailable()) {
     try { await settleSandboxRefunds(); }
     catch (err) { console.error("[agent-payment] sweep refund deferred:", (err as { code?: string })?.code ?? "refund_failed"); }
+  }
+  if (wechatTrainingPaymentAvailable()) {
+    try { await settleWechatRefunds(); }
+    catch (err) { console.error("[agent-payment] wechat refund sweep deferred:", (err as { code?: string })?.code ?? "refund_failed"); }
   }
   const expiry = await cancelExpiredOpenTasks(db);
   return { scanned, released, finalized, failedCycles, cancelledTasks: expiry.cancelled, failedTaskCancels: expiry.failed };
@@ -665,13 +824,319 @@ const agentEmploymentProcedure = publicQuery.use(async ({ next }) => {
 });
 
 // ─── 个人 Agent 报名、训练与支付沙箱 API ────────────────────────────────────
+function wechatOrderExpired(value: unknown): boolean {
+  if (value === null || value === undefined || value === '') return true
+  const timestamp = parseDbUtc(value)
+  return !Number.isFinite(timestamp) || timestamp <= Date.now()
+}
+
+function wechatTradeTime(date: Date): string {
+  return new Date(date.getTime() + 8 * 60 * 60 * 1000).toISOString().replace(/[-:TZ]/g, '').slice(0, 14)
+}
+
+async function issueWechatTrainingOrder(args: {
+  orderNo: string; registrationId: number; kind: 'registration' | 'retake'; attemptNo: number
+  amountCents: number; clientIp: string; createdAt?: unknown; expiresAt?: unknown; outTradeNo?: string; orderCycle?: number
+}): Promise<{ orderNo: string; outTradeNo: string; codeUrl: string; status: 'pending'; expiresAt: string }> {
+  const db = getDb()
+  const outTradeNo = args.outTradeNo ?? args.orderNo
+  const orderCycle = args.orderCycle ?? 1
+  if (!args.clientIp) precondition('无法确认下单客户端 IP')
+  const now = new Date()
+  const persistedCreatedAtMs = args.createdAt ? parseDbUtc(args.createdAt) : now.getTime()
+  const persistedExpiresAtMs = args.expiresAt ? parseDbUtc(args.expiresAt) : persistedCreatedAtMs + 30 * 60_000
+  if (!Number.isFinite(persistedCreatedAtMs) || !Number.isFinite(persistedExpiresAtMs)) precondition('支付订单时间无效，请人工核对')
+  const expired = persistedExpiresAtMs <= now.getTime()
+  const createdAt = expired ? now : new Date(persistedCreatedAtMs)
+  const expiresAt = expired ? new Date(now.getTime() + 30 * 60_000) : new Date(persistedExpiresAtMs)
+  await db.execute(sql`UPDATE st_agent_payment_orders SET status='creating' WHERE order_no=${args.orderNo} AND status IN ('creating','pending','failed')`)
+  try {
+    const result = await createWechatNativeOrder({
+      outTradeNo,
+      totalFee: args.amountCents,
+      description: args.kind === 'registration' ? '个人 Agent 报名费' : `个人 Agent 第 ${args.attemptNo} 次补考费`,
+      clientIp: args.clientIp,
+      productId: `${args.kind}:${args.registrationId}:${args.attemptNo}`,
+      timeStart: wechatTradeTime(createdAt),
+      timeExpire: wechatTradeTime(expiresAt),
+    })
+    const changed = affectedRowsOf(await db.execute(sql`UPDATE st_agent_payment_orders SET status='pending', out_trade_no=${outTradeNo}, order_cycle=${orderCycle}, prepay_id=${result.prepayId}, code_url=${result.codeUrl}, created_at=${createdAt}, expires_at=${expiresAt} WHERE order_no=${args.orderNo} AND status='creating'`))
+    if (changed !== 1) conflict('订单状态已被其他流程推进，未覆盖')
+    return { orderNo: args.orderNo, outTradeNo, codeUrl: result.codeUrl, status: 'pending', expiresAt: expiresAt.toISOString() }
+  } catch (error) {
+    await db.execute(sql`UPDATE st_agent_payment_orders SET status='failed' WHERE order_no=${args.orderNo} AND status='creating'`)
+    throw error
+  }
+}
+
+async function recoverWechatTradeNo(args: { orderNo: string; outTradeNo?: unknown; orderCycle?: unknown }): Promise<{ outTradeNo: string; orderCycle: number; paid: boolean }> {
+  const prior = String(args.outTradeNo ?? args.orderNo)
+  const currentCycle = Number(args.orderCycle ?? 1)
+  try {
+    const result = await queryWechatOrder(prior)
+    if (result.trade_state === 'SUCCESS') {
+      await processWechatRegistrationCallback({ outTradeNo: prior, transactionId: String(result.transaction_id), totalFee: Number(result.total_fee), tradeState: String(result.trade_state), timeEnd: String(result.time_end ?? '') })
+      return { outTradeNo: prior, orderCycle: currentCycle, paid: true }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if ((error instanceof WechatApiError && error.errCode === 'ORDERNOTEXIST') || /ORDERNOTEXIST|ORDER_NOT_EXIST|ORDERNOTFOUND|ORDER_NOT_FOUND/.test(message)) return { outTradeNo: prior, orderCycle: currentCycle, paid: false }
+    throw error
+  }
+  const orderCycle = currentCycle + 1
+  return { outTradeNo: `${args.orderNo}_r${orderCycle}`, orderCycle, paid: false }
+}
+
+async function completeRealRegistrationOrder(existing: RegistrationOrderView, clientIp: string): Promise<RealRegistrationOrderResult> {
+  if (existing.environment !== 'production') conflict('已有沙箱报名订单，不能直接切换为真实支付')
+  if (existing.codeUrl && !(existing.orderStatus === 'pending' && wechatOrderExpired(existing.expiresAt)) && ['pending', 'paid', 'refund_pending', 'refunded'].includes(existing.orderStatus)) {
+    return { ...existing, codeUrl: existing.codeUrl!, outTradeNo: existing.outTradeNo ?? existing.orderNo, expiresAt: toIsoOrNull(existing.expiresAt), already: true as const, realPayment: true as const }
+  }
+  const recovered = await recoverWechatTradeNo(existing)
+  if (recovered.paid) {
+    return { ...existing, codeUrl: existing.codeUrl ?? '', outTradeNo: recovered.outTradeNo, orderStatus: 'paid', already: true as const, realPayment: true as const }
+  }
+  const issued = await issueWechatTrainingOrder({
+    orderNo: existing.orderNo,
+    registrationId: existing.registrationId,
+    kind: 'registration',
+    attemptNo: 1,
+    amountCents: existing.amountCents,
+    clientIp,
+    createdAt: existing.createdAt,
+    expiresAt: existing.expiresAt,
+    outTradeNo: recovered.outTradeNo,
+    orderCycle: recovered.orderCycle,
+  })
+  return { ...existing, ...issued, orderStatus: 'pending', already: true as const, realPayment: true as const }
+}
+
+async function createRealRegistrationOrder(input: { token: string; agentName: string; idempotencyKey: string }, clientIp: string): Promise<RealRegistrationOrderResult> {
+  const session = await sessionMe(input.token)
+  const uid = Number(session.user.id)
+  const key = idem(`register:${uid}`, input.idempotencyKey)
+  const db = getDb()
+  const existing = await loadRegistrationOrder(db, key, uid)
+  if (existing) return completeRealRegistrationOrder(existing, clientIp)
+  const created = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM wb_users WHERE id=${uid} FOR UPDATE`)
+    const replay = await loadRegistrationOrder(tx as unknown as Db, key, uid)
+    if (replay) return { replay }
+    await tx.execute(sql`
+      UPDATE st_agent_registrations SET status='abandoned', fee_status='abandoned', idempotency_key=CONCAT('abandoned:', id)
+      WHERE owner_user_id=${uid} AND status='pending_payment'
+        AND created_at < DATE_SUB(NOW(), INTERVAL ${REGISTRATION_PENDING_EXPIRE_MINUTES} MINUTE)`)
+    await tx.execute(sql`
+      UPDATE st_agent_payment_orders SET status='abandoned', idempotency_key=CONCAT('abandoned:order:', id)
+      WHERE owner_user_id=${uid} AND status IN ('pending','abandoned') AND kind='registration'
+        AND ((status='pending' AND created_at < DATE_SUB(NOW(), INTERVAL ${REGISTRATION_PENDING_EXPIRE_MINUTES} MINUTE)) OR status='abandoned')`)
+    const activeRegistration = rawRows(await tx.execute(sql`
+      SELECT id FROM st_agent_registrations
+      WHERE owner_user_id=${uid} AND status IN ('pending_payment','training','qualified','disqualified') LIMIT 1`))[0]
+    if (activeRegistration) conflict('已有进行中或已定档的个人 Agent，不能重复报名')
+    const registrationNo = numberId('AR')
+    const agentKey = numberId('agent')
+    const registrationResult = await tx.execute(sql`
+      INSERT INTO st_agent_registrations
+        (registration_no, agent_key, owner_user_id, agent_name, status, fee_status, idempotency_key)
+      VALUES (${registrationNo}, ${agentKey}, ${uid}, ${input.agentName}, 'pending_payment', 'unpaid', ${key})`)
+    const registrationId = insertId(registrationResult)
+    const orderNo = numberId('AO')
+    await tx.execute(sql`
+      INSERT INTO st_agent_payment_orders
+        (order_no, registration_id, owner_user_id, kind, attempt_no, amount_cents, amount_job_tokens,
+         environment, status, out_trade_no, expires_at, idempotency_key)
+      VALUES
+        (${orderNo}, ${registrationId}, ${uid}, 'registration', 1, ${REGISTRATION_FEE_CENTS}, 0,
+         'production', 'creating', ${orderNo}, DATE_ADD(NOW(), INTERVAL 30 MINUTE), ${idem(`order:${uid}`, input.idempotencyKey)})`)
+    return { registrationId, registrationNo, agentKey, orderNo }
+  })
+  if ('replay' in created) return completeRealRegistrationOrder(created.replay as RegistrationOrderView, clientIp)
+  const inserted = created as { registrationId: number; registrationNo: string; agentKey: string; orderNo: string }
+  const issued = await issueWechatTrainingOrder({
+    orderNo: inserted.orderNo,
+    registrationId: inserted.registrationId,
+    kind: 'registration',
+    attemptNo: 1,
+    amountCents: REGISTRATION_FEE_CENTS,
+    clientIp,
+  })
+  return {
+    ...inserted,
+    ...issued,
+    status: 'pending_payment',
+    orderStatus: 'pending',
+    amountCents: REGISTRATION_FEE_CENTS,
+    amountJobTokens: 0,
+    currency: 'CNY',
+    environment: 'production',
+    already: false as const,
+    realPayment: true as const,
+  }
+}
+
+async function prepareRealRetakeOrder(input: { token: string; registrationId: number; idempotencyKey: string }) {
+  const session = await sessionMe(input.token)
+  const uid = Number(session.user.id)
+  const db = getDb()
+  const key = idem(`retake:${uid}:${input.registrationId}`, input.idempotencyKey)
+  return db.transaction(async (tx) => {
+    const registration = rawRows(await tx.execute(sql`
+      SELECT * FROM st_agent_registrations WHERE id=${input.registrationId} AND owner_user_id=${uid} FOR UPDATE`))[0]
+    if (!registration) notFound()
+    if (String(registration.status) !== 'training') precondition('只有训练中的个人 Agent 可以补考')
+    const currentAttempt = asNumber(registration.current_attempt_no)
+    const nextAttempt = currentAttempt + 1
+    if (nextAttempt > MAX_TRAINING_ATTEMPTS) conflict(`${MAX_TRAINING_ATTEMPTS} 次训练机会已用完`)
+    const previous = rawRows(await tx.execute(sql`
+      SELECT status FROM st_agent_training_cycles WHERE registration_id=${input.registrationId} AND attempt_no=${currentAttempt} LIMIT 1`))[0]
+    if (!previous || !['failed', 'expired'].includes(String(previous.status))) precondition('当前训练周期尚未结束，不能创建补考订单')
+    const otherActive = rawRows(await tx.execute(sql`
+      SELECT id FROM st_agent_training_cycles WHERE registration_id=${input.registrationId} AND status IN ('active','reviewing') LIMIT 1`))[0]
+    if (otherActive) conflict('仍有进行中的训练周期')
+    const existing = rawRows(await tx.execute(sql`
+      SELECT order_no AS orderNo, registration_id AS registrationId, attempt_no AS attemptNo,
+             amount_cents AS amountCents, amount_job_tokens AS amountJobTokens, status, environment,
+             out_trade_no AS outTradeNo, code_url AS codeUrl, expires_at AS expiresAt, created_at AS createdAt, order_cycle AS orderCycle
+      FROM st_agent_payment_orders WHERE registration_id=${input.registrationId} AND kind='retake' AND attempt_no=${nextAttempt} LIMIT 1 FOR UPDATE`))[0]
+    if (existing) return { order: existing, already: true as const, uid }
+    const orderNo = numberId('AO')
+    await tx.execute(sql`
+      INSERT INTO st_agent_payment_orders
+        (order_no, registration_id, owner_user_id, kind, attempt_no, amount_cents, amount_job_tokens,
+         environment, status, out_trade_no, expires_at, idempotency_key)
+      VALUES
+        (${orderNo}, ${input.registrationId}, ${uid}, 'retake', ${nextAttempt}, ${RETAKE_FEE_CENTS}, 0,
+         'production', 'creating', ${orderNo}, DATE_ADD(NOW(), INTERVAL 30 MINUTE), ${key})`)
+    const order = rawRows(await tx.execute(sql`
+      SELECT order_no AS orderNo, registration_id AS registrationId, attempt_no AS attemptNo,
+             amount_cents AS amountCents, amount_job_tokens AS amountJobTokens, status, environment,
+             out_trade_no AS outTradeNo, code_url AS codeUrl, expires_at AS expiresAt, created_at AS createdAt, order_cycle AS orderCycle
+      FROM st_agent_payment_orders WHERE order_no=${orderNo} LIMIT 1`))[0]
+    if (!order) throw new Error('retake_order_readback_failed')
+    return { order, already: false as const, uid }
+  })
+}
+
+async function createRealRetakeOrder(input: { token: string; registrationId: number; idempotencyKey: string }, clientIp: string): Promise<RealRetakeOrderResult> {
+  const prepared = await prepareRealRetakeOrder(input)
+  const order = prepared.order
+  if (order.environment !== 'production') conflict('已有沙箱补考订单，不能直接切换为真实支付')
+  if (order.codeUrl && !(String(order.status) === 'pending' && wechatOrderExpired(order.expiresAt)) && ['pending', 'paid', 'refund_pending', 'refunded'].includes(String(order.status))) {
+    return {
+      orderNo: String(order.orderNo), registrationId: Number(order.registrationId), attemptNo: Number(order.attemptNo),
+      amountCents: Number(order.amountCents), amountJobTokens: Number(order.amountJobTokens), status: String(order.status),
+      environment: 'production', outTradeNo: String(order.outTradeNo), codeUrl: String(order.codeUrl), expiresAt: toIsoOrNull(order.expiresAt),
+      currency: 'CNY', already: true as const, realPayment: true as const,
+    }
+  }
+  const recovered = prepared.already
+    ? await recoverWechatTradeNo({ orderNo: String(order.orderNo), outTradeNo: order.outTradeNo, orderCycle: order.orderCycle })
+    : { outTradeNo: String(order.outTradeNo), orderCycle: Number(order.orderCycle ?? 1), paid: false }
+  if (recovered.paid) {
+    return {
+      orderNo: String(order.orderNo), registrationId: Number(order.registrationId), attemptNo: Number(order.attemptNo),
+      amountCents: Number(order.amountCents), amountJobTokens: Number(order.amountJobTokens), status: 'paid',
+      environment: 'production', outTradeNo: recovered.outTradeNo, codeUrl: String(order.codeUrl ?? ''),
+      currency: 'CNY', already: true as const, realPayment: true as const,
+    }
+  }
+  const issued = await issueWechatTrainingOrder({
+    orderNo: String(order.orderNo),
+    registrationId: Number(order.registrationId),
+    kind: 'retake',
+    attemptNo: Number(order.attemptNo),
+    amountCents: Number(order.amountCents),
+    clientIp,
+    createdAt: order.createdAt,
+    expiresAt: order.expiresAt,
+    outTradeNo: recovered.outTradeNo,
+    orderCycle: recovered.orderCycle,
+  })
+  return {
+    orderNo: String(order.orderNo), registrationId: Number(order.registrationId), attemptNo: Number(order.attemptNo),
+    amountCents: Number(order.amountCents), amountJobTokens: Number(order.amountJobTokens), status: 'pending',
+    environment: 'production', outTradeNo: issued.outTradeNo, codeUrl: issued.codeUrl,
+    currency: 'CNY', already: prepared.already, realPayment: true as const,
+  }
+}
+
+export async function processWechatRegistrationCallback(args: {
+  outTradeNo: string; transactionId: string; totalFee: number; tradeState: string; timeEnd: string
+}): Promise<{ ok: true; already: boolean; status: string }> {
+  if (args.tradeState !== 'SUCCESS') precondition('微信支付尚未成功')
+  const db = getDb()
+  return db.transaction(async (tx) => {
+    const eventId = `wechat:${args.transactionId}:${args.outTradeNo}`
+    const payload = JSON.stringify(args)
+    const payloadHash = wechatPayloadSha256(payload)
+    const current = rawRows(await tx.execute(sql`
+      SELECT o.*, r.status AS registrationStatus, r.current_attempt_no AS currentAttemptNo
+      FROM st_agent_payment_orders o JOIN st_agent_registrations r ON r.id=o.registration_id
+      WHERE o.out_trade_no=${args.outTradeNo} FOR UPDATE`))[0]
+    if (!current) notFound('报名或补考订单不存在')
+    if (String(current.environment) !== 'production') conflict('沙箱订单不得走微信真实回调')
+    const attemptNo = asNumber(current.attempt_no)
+    if (asNumber(current.amount_cents) !== args.totalFee || asNumber(current.amount_cents) !== attemptFeeCents(attemptNo)) {
+      badRequest('回调金额与订单费用规则不一致')
+    }
+    const existing = rawRows(await tx.execute(sql`SELECT payload_sha256 AS payloadSha256 FROM st_agent_payment_events WHERE event_id=${eventId} LIMIT 1`))[0]
+    if (existing) {
+      if (String(existing.payloadSha256) !== payloadHash) forbidden('支付回调事件指纹不一致，禁止重放')
+      return { ok: true as const, already: true as const, status: 'paid' }
+    }
+    if (['paid', 'refund_pending', 'refunded'].includes(String(current.status))) {
+      if (String(current.transaction_id ?? current.provider_ref ?? '') !== args.transactionId) conflict('订单已支付，但微信交易号不一致')
+      return { ok: true as const, already: true as const, status: String(current.status) }
+    }
+    if (String(current.status) !== 'pending') conflict(`订单状态 ${String(current.status)} 不可支付`)
+    const inserted = await tx.execute(sql`
+      INSERT INTO st_agent_payment_events (event_id, order_id, event_type, payload_sha256, payload_json)
+      VALUES (${eventId}, ${Number(current.id)}, 'payment.paid', ${payloadHash}, ${payload})
+      ON DUPLICATE KEY UPDATE event_id=event_id`)
+    if (affectedRowsOf(inserted) === 0) return { ok: true as const, already: true as const, status: 'paid' }
+    const changed = affectedRowsOf(await tx.execute(sql`
+      UPDATE st_agent_payment_orders SET status='paid', provider_ref=${args.transactionId}, transaction_id=${args.transactionId}, paid_at=NOW()
+      WHERE id=${Number(current.id)} AND status='pending'`))
+    if (changed !== 1) conflict('订单已被其他回调处理')
+    const registrationId = Number(current.registration_id)
+    if (String(current.kind) === 'registration') {
+      if (attemptNo !== 1 || String(current.registrationStatus) !== 'pending_payment' || asNumber(current.currentAttemptNo) !== 0) {
+        conflict('报名订单与注册状态不一致')
+      }
+      const activated = affectedRowsOf(await tx.execute(sql`
+        UPDATE st_agent_registrations
+        SET status='training', fee_status='paid', current_attempt_no=1, version=version+1
+        WHERE id=${registrationId} AND status='pending_payment' AND current_attempt_no=0`))
+      if (activated !== 1) conflict('注册状态已被其他回调改变')
+      await createCycle(tx as unknown as Db, registrationId, 1)
+    } else if (String(current.kind) === 'retake') {
+      if (attemptNo < 2 || attemptNo > MAX_TRAINING_ATTEMPTS || String(current.registrationStatus) !== 'training' || asNumber(current.currentAttemptNo) !== attemptNo - 1) {
+        conflict('补考订单与当前训练进度不一致')
+      }
+      const previous = rawRows(await tx.execute(sql`
+        SELECT status FROM st_agent_training_cycles WHERE registration_id=${registrationId} AND attempt_no=${attemptNo - 1} LIMIT 1`))[0]
+      if (!previous || !['failed', 'expired'].includes(String(previous.status))) precondition('上一周期未结束，不能补考')
+      const advanced = affectedRowsOf(await tx.execute(sql`
+        UPDATE st_agent_registrations SET current_attempt_no=${attemptNo}, version=version+1
+        WHERE id=${registrationId} AND status='training' AND current_attempt_no=${attemptNo - 1}`))
+      if (advanced !== 1) conflict('训练进度已被其他回调改变')
+      await createCycle(tx as unknown as Db, registrationId, attemptNo)
+    } else {
+      badRequest('未知订单类型')
+    }
+    return { ok: true as const, already: false as const, status: 'paid' }
+  })
+}
+
 export const agentTrainingRouter = createRouter({
   register: agentEmploymentProcedure.input(z.object({
     ...tokenInput,
     ...idempotencyInput,
     agentName: z.string().trim().min(AGENT_NAME_MIN_LENGTH).max(AGENT_NAME_MAX_LENGTH),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const session = await sessionMe(input.token);
+    if (wechatTrainingPaymentAvailable()) return createRealRegistrationOrder(input, String((ctx as { clientIp?: string }).clientIp ?? ''));
     if (!sandboxPaymentAvailable()) precondition("当前未配置可用支付通道，暂不创建报名订单");
     const uid = Number(session.user.id);
     const key = idem(`register:${uid}`, input.idempotencyKey);
@@ -730,8 +1195,9 @@ export const agentTrainingRouter = createRouter({
     ...tokenInput,
     ...idempotencyInput,
     registrationId: z.number().int().positive(),
-  })).mutation(async ({ input }) => {
+  })).mutation(async ({ input, ctx }) => {
     const session = await sessionMe(input.token);
+    if (wechatTrainingPaymentAvailable()) return createRealRetakeOrder(input, String((ctx as { clientIp?: string }).clientIp ?? ''));
     if (!sandboxPaymentAvailable()) precondition("当前未配置可用支付通道，暂不创建补考订单");
     const uid = Number(session.user.id);
     const db = getDb();
@@ -784,6 +1250,48 @@ export const agentTrainingRouter = createRouter({
     }
   }),
 
+  paymentQr: agentEmploymentProcedure.input(z.object({
+    token: z.string().trim().min(1),
+    orderNo: z.string().trim().min(8).max(48),
+  })).query(async ({ input }) => {
+    const session = await sessionMe(input.token);
+    const order = rows(await getDb().execute(sql`SELECT * FROM st_agent_payment_orders WHERE order_no=${input.orderNo} AND owner_user_id=${session.user.id} LIMIT 1`))[0];
+    if (!order) notFound('报名或补考订单不存在');
+    if (String(order.environment) !== 'production') conflict('沙箱订单不提供微信收款二维码');
+    if (!order.code_url) precondition('订单尚未取得微信支付 code_url');
+    const png = await QRCode.toBuffer(String(order.code_url), { type: 'png', width: 512, margin: 1, errorCorrectionLevel: 'M' });
+    return {
+      orderNo: String(order.order_no),
+      pngBase64: png.toString('base64'),
+      codeUrl: String(order.code_url),
+      binding: {
+        orderNo: String(order.order_no),
+        outTradeNo: String(order.out_trade_no),
+        registrationId: Number(order.registration_id),
+        kind: String(order.kind),
+        attemptNo: Number(order.attempt_no),
+        amountCents: Number(order.amount_cents),
+      },
+    };
+  }),
+
+  paymentStatus: agentEmploymentProcedure.input(z.object({
+    token: z.string().trim().min(1),
+    orderNo: z.string().trim().min(8).max(48),
+  })).query(async ({ input }) => {
+    const session = await sessionMe(input.token);
+    const order = rows(await getDb().execute(sql`
+      SELECT o.*, r.status AS registrationStatus FROM st_agent_payment_orders o
+      JOIN st_agent_registrations r ON r.id=o.registration_id
+      WHERE o.order_no=${input.orderNo} AND o.owner_user_id=${session.user.id} LIMIT 1`))[0];
+    if (!order) notFound('报名或补考订单不存在');
+    return {
+      orderNo: String(order.order_no), status: String(order.status), environment: String(order.environment),
+      transactionId: order.transaction_id ? String(order.transaction_id) : null,
+      paidAt: order.paid_at, registrationStatus: String(order.registrationStatus), realPayment: true as const,
+    };
+  }),
+
   sandboxCallback: agentEmploymentProcedure.input(z.object({
     eventId: z.string().trim().min(8).max(128),
     orderNo: z.string().trim().min(8).max(48),
@@ -830,10 +1338,10 @@ export const agentTrainingRouter = createRouter({
     const key = idem(`exchange:${uid}:${input.registrationId}`, input.idempotencyKey);
     const db = getDb();
     const existing = rows(await db.execute(sql`
-      SELECT exchange_no AS exchangeNo, amount_job_tokens AS amountJobTokens, status
+      SELECT exchange_no AS exchangeNo, amount_job_tokens AS amountJobTokens, amount_cents AS amountCents, status
       FROM st_agent_token_exchanges WHERE idempotency_key=${key} AND owner_user_id=${uid} LIMIT 1`))[0];
     if (existing) {
-      return { ...existing, amountCents: input.amountJobTokens * JOB_TOKEN_CNY_CENTS, already: true, realExchange: false,
+      return { ...existing, amountJobTokens: asNumber(existing.amountJobTokens), amountCents: asNumber(existing.amountJobTokens) * JOB_TOKEN_CNY_CENTS, already: true, realExchange: false,
         balanceJobTokens: await readAgentTokenBalance(db as unknown as AgentTokenWalletDb, input.registrationId) };
     }
     try {
@@ -843,9 +1351,9 @@ export const agentTrainingRouter = createRouter({
           SELECT id FROM st_agent_registrations WHERE id=${input.registrationId} AND owner_user_id=${uid} FOR UPDATE`))[0];
         if (!lockedRegistration) notFound("个人 Agent 注册记录不存在");
         const replay = rows(await dbtx.execute(sql`
-          SELECT exchange_no AS exchangeNo, amount_job_tokens AS amountJobTokens, status
+          SELECT exchange_no AS exchangeNo, amount_job_tokens AS amountJobTokens, amount_cents AS amountCents, status
           FROM st_agent_token_exchanges WHERE idempotency_key=${key} AND owner_user_id=${uid} FOR UPDATE`))[0];
-        if (replay) return { ...replay, amountCents: input.amountJobTokens * JOB_TOKEN_CNY_CENTS, already: true, realExchange: false,
+        if (replay) return { ...replay, amountJobTokens: asNumber(replay.amountJobTokens), amountCents: asNumber(replay.amountJobTokens) * JOB_TOKEN_CNY_CENTS, already: true, realExchange: false,
           balanceJobTokens: await readAgentTokenBalance(dbtx as unknown as AgentTokenWalletDb, input.registrationId) };
         const daily = rows(await dbtx.execute(sql`
           SELECT COALESCE(SUM(amount_job_tokens),0) AS total FROM st_agent_token_exchanges
@@ -870,10 +1378,10 @@ export const agentTrainingRouter = createRouter({
     } catch (err) {
       if (!isDuplicate(err)) throw err;
       const duplicate = rows(await db.execute(sql`
-        SELECT exchange_no AS exchangeNo, amount_job_tokens AS amountJobTokens, status
+        SELECT exchange_no AS exchangeNo, amount_job_tokens AS amountJobTokens, amount_cents AS amountCents, status
         FROM st_agent_token_exchanges WHERE idempotency_key=${key} AND owner_user_id=${uid} LIMIT 1`))[0];
       if (!duplicate) throw err;
-      return { ...duplicate, already: true, realExchange: false,
+      return { ...duplicate, amountJobTokens: asNumber(duplicate.amountJobTokens), amountCents: asNumber(duplicate.amountJobTokens) * JOB_TOKEN_CNY_CENTS, already: true, realExchange: false,
         balanceJobTokens: await readAgentTokenBalance(db as unknown as AgentTokenWalletDb, input.registrationId) };
     }
   }),
@@ -1141,8 +1649,9 @@ function publicRules() {
     employmentRequires: "qualified",
     wageRequires: "accepted_delivery",
     paymentMode: isAgentTestEconomy() ? "agent_job_token_sandbox" : "rmb_cents",
-    paymentAvailable: sandboxPaymentAvailable(),
+    paymentAvailable: sandboxPaymentAvailable() || wechatTrainingPaymentAvailable(),
     sandboxEnabled: sandboxPaymentAvailable(),
+    wechatEnabled: wechatTrainingPaymentAvailable(),
     sandboxQualificationEnabled: isAgentTestEconomy() && process.env.AGENT_EMPLOYMENT_SANDBOX_QUALIFICATION_OK === "true",
     trainingMeaning: "isolated_simulated_work_with_independent_review_not_model_weight_training",
   };
@@ -1204,8 +1713,12 @@ async function requireTaskScope(token: string, factoryId: unknown, departmentId:
   return session;
 }
 
-async function scopedPublisher(token: string, departmentId: string) {
+async function scopedPublisher(token: string, departmentId: string | null) {
   const session = await requireWbRole(token, ["admin", "manager"], "仅企业负责人或部门负责人可执行此操作");
+  if (departmentId === null) {
+    if ((await effectiveRoleOf(session.user)) !== 'admin') forbidden('历史任务未分配部门，仅企业负责人可管理公开范围');
+    return session;
+  }
   await requireDeptScope(token, departmentId);
   const factory = rows(await getDb().execute(sql`SELECT departments FROM wb_factories WHERE id=${session.factory.id} LIMIT 1`))[0];
   if (!departmentList(factory?.departments).some((department) => department.id === departmentId)) {
@@ -1300,6 +1813,7 @@ export const agentWorkRouter = createRouter({
              ${input.requirements ?? null}, ${input.rewardJobTokens}, ${input.rewardJobTokens}, ${publishToLiveFeed ? 1 : 0}, ${publishToLiveFeed ? publicDisplayName : null}, ${input.deadlineAt ? new Date(input.deadlineAt) : null}, ${key})`);
         const taskId = insertId(result);
         if (publishToLiveFeed) await dbtx.execute(sql`INSERT INTO st_agent_task_visibility_audit (task_id, factory_id, actor_user_id, from_feed, to_feed, public_actor_name) VALUES (${taskId}, ${session.factory.id}, ${session.user.id}, 0, 1, ${publicDisplayName})`);
+        invalidateAgentMarketLiveFeedCache()
         return { id: taskId, taskNo, status: "open", already: false, escrowJobTokens: input.rewardJobTokens };
       });
     } catch (err) {
@@ -1317,18 +1831,24 @@ export const agentWorkRouter = createRouter({
     publicDisplayName: z.string().trim().max(80).optional(),
   })).mutation(async ({ input }) => {
     const db = getDb();
+    const preview = rows(await db.execute(sql`SELECT id, factory_id AS factoryId, department_id AS departmentId, status FROM st_agent_work_tasks WHERE id=${input.taskId} LIMIT 1`))[0];
+    if (!preview) notFound("工作任务不存在");
+    const previewDepartment = preview.departmentId === null ? null : String(preview.departmentId);
+    const session = await scopedPublisher(input.token, previewDepartment);
+    if (Number(session.factory.id) !== Number(preview.factoryId)) forbidden("不能修改其他企业的任务公开范围");
     return db.transaction(async (tx) => {
       const task = rows(await tx.execute(sql`SELECT id, factory_id AS factoryId, department_id AS departmentId, status, public_feed AS publicFeed, public_actor_name AS publicActorName, version FROM st_agent_work_tasks WHERE id=${input.taskId} FOR UPDATE`))[0];
       if (!task) notFound("工作任务不存在");
+      const currentDepartment = task.departmentId === null ? null : String(task.departmentId);
+      if (currentDepartment !== previewDepartment) conflict("任务部门已变化，请重新读取后重试");
       if (input.publish && !["open", "claimed", "submitted"].includes(String(task.status))) precondition("仅开放、执行中或待验收任务可公开");
-      const session = await scopedPublisher(input.token, String(task.departmentId));
-      if (Number(session.factory.id) !== Number(task.factoryId)) forbidden("不能修改其他企业的任务公开范围");
       const nextName = input.publish ? normalizePublicDisplayName(input.publicDisplayName) : null;
       const already = Number(task.publicFeed) === (input.publish ? 1 : 0) && String(task.publicActorName ?? "") === String(nextName ?? "");
       if (already) return { ok: true as const, already: true as const, taskId: input.taskId, publicFeed: input.publish, publicDisplayName: nextName, version: Number(task.version) };
       const updated = await tx.execute(sql`UPDATE st_agent_work_tasks SET public_feed=${input.publish ? 1 : 0}, public_actor_name=${nextName}, version=version+1 WHERE id=${input.taskId} AND version=${Number(task.version)}`);
       if (affectedRowsOf(updated) !== 1) conflict("任务公开范围已被其他操作更新，请回读后重试");
       await tx.execute(sql`INSERT INTO st_agent_task_visibility_audit (task_id, factory_id, actor_user_id, from_feed, to_feed, public_actor_name) VALUES (${input.taskId}, ${Number(task.factoryId)}, ${Number(session.user.id)}, ${Number(task.publicFeed)}, ${input.publish ? 1 : 0}, ${nextName})`);
+      invalidateAgentMarketLiveFeedCache()
       return { ok: true as const, already: false as const, taskId: input.taskId, publicFeed: input.publish, publicDisplayName: nextName, version: Number(task.version) + 1 };
     });
   }),
@@ -1359,6 +1879,7 @@ export const agentWorkRouter = createRouter({
           cancelled_by=${session.user.id}, cancelled_at=NOW()
         WHERE id=${input.taskId} AND status IN ('open','claimed','rejected')`));
       if (changed !== 1) conflict("任务已被其他流程处理");
+      invalidateAgentMarketLiveFeedCache()
       return { ok: true as const, status: "cancelled", releasedJobTokens: release.releasedJobTokens };
     });
   }),

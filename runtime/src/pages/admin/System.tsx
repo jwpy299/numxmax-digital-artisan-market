@@ -600,7 +600,7 @@ export default function AdminSystem() {
         )}
         <p className="mt-4 text-[11px] leading-relaxed text-ink-faint">
           探测地址由后端环境变量 PORTAL_URL / WORKBENCH_URL 配置，默认值分别为
-          https://downloads.example.invalid 与 https://wb.example.invalid（:3100/:3000 死端口面已退役）。
+          https://downloads.example.invalid 与 https://wb.lingshu-nebulaai.com（:3100/:3000 死端口面已退役）。
         </p>
       </WbPanel>
       <ModelGatewayPanel session={session} />

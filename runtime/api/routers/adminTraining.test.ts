@@ -189,7 +189,7 @@ describe("训练包独立命名空间与上传脚本", () => {
     expect(source).not.toContain('dept_synergy: ""');
     expect(source).toContain("订阅包缺少独立 station_key——禁止跨部门或全域混训");
     const script = readFileSync(new URL("../../scripts/run_training.sh", import.meta.url), "utf8");
-    expect(script).toContain("${SCNET_REMOTE_WORK_ROOT:-/opt/train/sandboxes}/$VER");
+    expect(script).toContain("mkdir -p /opt/train/sandboxes/$VER");
     expect(script).toContain("$SAMPLE_OUT.eval.jsonl");
     expect(script).toContain("train_lora.py");
     expect(script).toContain("eval_reviewer.py");

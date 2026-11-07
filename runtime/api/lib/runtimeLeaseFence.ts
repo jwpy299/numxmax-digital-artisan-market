@@ -1,3 +1,5 @@
+import { parseDbUtc } from './dbUtc'
+
 /** P1 runtime delivery fence. Pure functions only; canonical state remains in the backend. */
 export type RuntimeLeaseStatus = 'active' | 'revoked' | 'closed'
 
@@ -21,6 +23,7 @@ export interface RuntimeLeaseContext {
   leaseId: string
   leaseEpoch: number
   workerId: string
+  expiresAt?: string
 }
 
 export class RuntimeLeaseFenceError extends Error {
@@ -67,6 +70,9 @@ export function assertRuntimeEventDelivery(mandate: RuntimeEventMandate, lease: 
     && mandate.leaseId === lease.leaseId
     && mandate.workerId === lease.workerId
   if (!scopeMatches) throw new RuntimeLeaseFenceError('runtime_lease_scope_mismatch')
+  const expiresAt = parseDbUtc(lease.expiresAt ?? '')
+  if (!Number.isFinite(expiresAt)) throw new RuntimeLeaseFenceError('runtime_lease_expiry_invalid')
+  if (expiresAt <= Date.now()) throw new RuntimeLeaseFenceError('runtime_lease_expired')
   if (mandate.leaseEpoch < currentEpoch) throw new RuntimeLeaseFenceError('runtime_lease_stale')
   if (mandate.leaseEpoch > currentEpoch) throw new RuntimeLeaseFenceError('runtime_lease_epoch_conflict')
 }

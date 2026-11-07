@@ -233,6 +233,8 @@ async function freshRelease(opts: { files?: string[]; exists?: boolean | ((path:
     renameSync: vi.fn(),
     rmSync: vi.fn(),
     openSync: vi.fn(() => 1),
+    mkdirSync: vi.fn(),
+    chmodSync: vi.fn(),
     fsyncSync: vi.fn(),
     closeSync: vi.fn(),
   };
@@ -307,6 +309,35 @@ describe("adminRelease 通道面", () => {
     const body = fsMock.writeFileSync.mock.calls.map((c) => String(c[1])).join("\n");
     expect(body).toContain('"minVersion": "3.0.0"');
     expect(fsMock.openSync).toHaveBeenCalledWith(expect.any(String), "r+");
+  });
+
+  it("publish：历史缺失时先原子归档旧 manifest 与校验文件", async () => {
+    const { mod, fsMock } = await freshRelease();
+    fsMock.readFileSync.mockImplementation(((file: unknown) => {
+      if (String(file).includes("manifest-history")) { const e = new Error("missing") as Error & { code: string }; e.code = "ENOENT"; throw e; }
+      return JSON.stringify(CURRENT);
+    }) as never);
+    await mod.adminReleaseRouter.createCaller({} as never).publish({ token: "boss", reviewToken: "tech", version: "3.0.0", url: "numx-max-v3.0.0.apk", notes: "x" });
+    const paths = fsMock.writeFileSync.mock.calls.map((call) => String(call[0]));
+    const manifestTemp = paths.find((file) => file.includes("manifest-history/2.9.63/api-app-release.json.tmp-"));
+    expect(manifestTemp).toBeTruthy();
+    const sumsTemp = paths.find((file) => file.includes("manifest-history/2.9.63/api-SHA256SUMS.tmp-"));
+    expect(sumsTemp).toBeTruthy();
+    const hashesTemp = paths.find((file) => file.includes("manifest-history/2.9.63/api-snapshot-hashes.tsv.tmp-"));
+    expect(hashesTemp).toBeTruthy();
+    expect(fsMock.renameSync).toHaveBeenCalledTimes(5);
+    expect(fsMock.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true, mode: 0o700 });
+    expect(fsMock.chmodSync).toHaveBeenCalledWith(expect.any(String), 0o700);
+  });
+
+  it("publish：同版历史内容冲突时拒绝覆盖且不执行 rename", async () => {
+    const { mod, fsMock } = await freshRelease();
+    fsMock.readFileSync.mockImplementation(((file: unknown) => {
+      if (String(file).includes("manifest-history")) return JSON.stringify({ ...CURRENT, url: "https://downloads.example.invalid/numx-max-v9.9.9.apk" });
+      return JSON.stringify(CURRENT);
+    }) as never);
+    await expect(mod.adminReleaseRouter.createCaller({} as never).publish({ token: "boss", reviewToken: "tech", version: "3.0.0", url: "numx-max-v3.0.0.apk", notes: "x" })).rejects.toThrow("历史快照同版身份冲突");
+    expect(fsMock.renameSync).not.toHaveBeenCalled();
   });
 
   it("history：dist 缺双份标 synced:false，不给可回滚假面", async () => {
@@ -390,12 +421,13 @@ describe("adminRelease 通道面", () => {
     expect(r.items).toEqual([]);
   });
   it("rollback：有历史快照时按快照恢复并标记 snapshotVerified", async () => {
-    const { mod, fsMock } = await freshRelease({ readBody: JSON.stringify({ ...CURRENT, version: "2.9.65" }) });
+    const { mod, fsMock } = await freshRelease({ readBody: JSON.stringify({ ...CURRENT, version: "2.9.65", leanUrl: "https://downloads.example.invalid/lingshu-spirit-lean-v2.9.56.apk" }) });
     fsMock.readFileSync.mockImplementation(((file: unknown) => String(file).includes("manifest-history")
-      ? JSON.stringify({ ...CURRENT, version: "2.9.63" })
-      : JSON.stringify({ ...CURRENT, version: "2.9.65" })) as never);
+      ? JSON.stringify({ ...CURRENT, version: "2.9.63", leanUrl: "https://downloads.example.invalid/lingshu-spirit-lean-v2.9.50.apk" })
+      : JSON.stringify({ ...CURRENT, version: "2.9.65", leanUrl: "https://downloads.example.invalid/lingshu-spirit-lean-v2.9.56.apk" })) as never);
     const r = await mod.adminReleaseRouter.createCaller({} as never).rollback({ token: "boss", reviewToken: "tech", version: "2.9.63" });
     expect(r.snapshotVerified).toBe(true);
     expect(fsMock.writeFileSync.mock.calls.some((c) => String(c[1]).includes('"version": "2.9.63"'))).toBe(true);
+    expect(fsMock.writeFileSync.mock.calls.some((c) => String(c[1]).includes('"leanUrl": "https://downloads.example.invalid/lingshu-spirit-lean-v2.9.56.apk"'))).toBe(true);
   });
 });

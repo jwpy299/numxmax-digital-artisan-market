@@ -23,8 +23,8 @@ export const EXECUTIVE_IDENTITY = [
 /** 四端架构图谱（白板架构图核定版，链路咬合度核对的事实源） */
 export const ARCHITECTURE_MAP = [
   "Kimi DSH 生态总管：管系统更新 + NumX Max APP更新（发布流水线 st_releases + C 级双签人工闸）。",
-  "超级终端管理后台（S3 admin.example.invalid:3200）：接海禛云统一 API，原生注册/登录通道（M64 st_admin_accounts 审批流）。",
-  "智能工作台（S2 wb.example.invalid:3000）↔ DSH 运行时框架 ↔ 数字员工超市 ↔ DSH 插件包/GitHub（topic:dsh-plugin，服务端代理，APP 永不直连外网）。",
+  "超级终端管理后台（S3 admin.lingshu-nebulaai.com:3200）：接海禛云统一 API，原生注册/登录通道（M64 st_admin_accounts 审批流）。",
+  "智能工作台（S2 wb.lingshu-nebulaai.com:3000）↔ DSH 运行时框架 ↔ 数字员工超市 ↔ DSH 插件包/GitHub（topic:dsh-plugin，服务端代理，APP 永不直连外网）。",
   "NumX Max APP/星云（↔DSH、海禛云统一 API）：语音数字人主链（云端 TTS 优先、端侧兜底）、扫一扫设备绑定、BLE/mDNS 信号源发现（v2.1.9）。",
   "个人/企业注册通道：门户注册 → factoryId 强隔离（HQ_FACTORY_IDS=6290209，不含 6290210）。",
 ] as const;

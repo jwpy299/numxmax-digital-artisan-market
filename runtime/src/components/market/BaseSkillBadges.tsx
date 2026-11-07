@@ -26,7 +26,7 @@ export default function BaseSkillBadges({ className }: { className?: string }) {
     let alive = true
     // v2026-09-05 修复：trpc React 代理没有裸 .query()（vendor 运行期 t[o] is not a function 崩整页）
     // ——裸拉走 HTTP 端点（与 wb 同源契约），失败静默不渲染
-    fetch('https://wb.example.invalid/api/trpc/skills.baseSkills', {
+    fetch('https://wb.lingshu-nebulaai.com/api/trpc/skills.baseSkills', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ json: {} }),

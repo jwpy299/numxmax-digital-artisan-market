@@ -73,6 +73,22 @@ describe.skipIf(!HAS_ROOT)("发布制品恢复（root-only；公开 CI 另有特
     expect(fs.readFileSync(path.join(history, "snapshot-hashes.tsv"), "utf8")).toContain(f.apk);
   });
 
+  it("API 专用历史目录不冒充脚本快照，自定义 HISTORY_ROOT 且原文件不被覆盖", () => {
+    const f = fixture();
+    const historyRoot = path.join(f.root, "custom-history");
+    const history = path.join(historyRoot, "2.9.66");
+    fs.mkdirSync(history, { recursive: true, mode: 0o700 });
+    fs.chmodSync(history, 0o700);
+    fs.writeFileSync(path.join(history, "api-app-release.json"), metadata("2.9.66"));
+    fs.writeFileSync(path.join(history, "api-SHA256SUMS"), "api-owned\n");
+    const result = runRestore(f, { RELEASE_MANIFEST_HISTORY_DIR: historyRoot });
+    expect(result.status, result.stderr).toBe(0);
+    expect(fs.readFileSync(path.join(history, "api-SHA256SUMS"), "utf8")).toBe("api-owned\n");
+    expect(fs.readFileSync(path.join(history, "app-release.json"), "utf8")).toBe(metadata("2.9.66"));
+    expect(fs.readFileSync(path.join(history, "SHA256SUMS"), "utf8")).toBe(fs.readFileSync(path.join(f.src, "SHA256SUMS"), "utf8"));
+    expect(fs.existsSync(path.join(history, "snapshot-hashes.tsv"))).toBe(true);
+  });
+
   it("坏 APK 不覆盖现有两个下载目录", () => {
     const f = fixture();
     fs.writeFileSync(path.join(f.src, "SHA256SUMS"), `${"0".repeat(64)}  ${f.apk}\n`);
@@ -186,7 +202,7 @@ describe.skipIf(!HAS_ROOT)("发布制品恢复（root-only；公开 CI 另有特
 
   it("故障注入路径先归一化，不能借 /tmp/.. 绕过", () => {
     const f = fixture();
-    const result = runRestore(f, { RELEASE_TEST_MODE: "1", RELEASE_TEST_FAIL_AFTER_PAYLOAD: "1", RELEASE_WORK_ROOT: "/tmp/../../etc/numxmax-release-work" });
+    const result = runRestore(f, { RELEASE_TEST_MODE: "1", RELEASE_TEST_FAIL_AFTER_PAYLOAD: "1", RELEASE_WORK_ROOT: "/tmp/../opt/numxmax/release-work" });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("故障注入只允许操作 /tmp");
   });

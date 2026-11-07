@@ -168,7 +168,7 @@ export const terminalRouter = createRouter({
 
     // 系统健康：DB 自检 + 门户/工作台探测（复用 systemHealth 同款逻辑）
     const portalUrl = process.env.PORTAL_URL ?? "https://downloads.example.invalid";
-    const workbenchUrl = process.env.WORKBENCH_URL ?? "https://wb.example.invalid";
+    const workbenchUrl = process.env.WORKBENCH_URL ?? "https://wb.lingshu-nebulaai.com";
     const database = await dbProbeTimed(); // R24 票②：计时包装走 dbProbeTimed 单点（不再两处手写）
     const [portal, workbench] = await Promise.all([probeDeep(portalUrl), probeDeep(workbenchUrl)]);
 

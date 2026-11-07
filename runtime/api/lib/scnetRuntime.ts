@@ -55,6 +55,12 @@ async function readLimited(response: Response): Promise<string> {
   return new TextDecoder().decode(merged)
 }
 
+function finiteNumber(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(Math.max(parsed, min), max)
+}
+
 /** SCNet 严格推理：不降级到其他厂商，不记录 prompt 原文或密钥。 */
 export async function callScnetInference(args: {
   messages: ScnetMessage[]
@@ -69,13 +75,13 @@ export async function callScnetInference(args: {
   const body = JSON.stringify({
     model: cfg.model,
     messages: args.messages,
-    max_tokens: Math.min(Math.max(Math.floor(args.maxTokens ?? 512), 1), 4096),
-    temperature: args.temperature ?? 0.3,
+    max_tokens: Math.floor(finiteNumber(args.maxTokens, 512, 1, 4096)),
+    temperature: finiteNumber(args.temperature, 0.3, 0, 2),
     stream: false,
   })
   const started = Date.now()
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), Math.min(Math.max(args.timeoutMs ?? 30_000, 1), 120_000))
+  const timer = setTimeout(() => controller.abort(), finiteNumber(args.timeoutMs, 30_000, 1, 120_000))
   try {
     const response = await fetcher(`${cfg.baseUrl}/chat/completions`, {
       method: 'POST',

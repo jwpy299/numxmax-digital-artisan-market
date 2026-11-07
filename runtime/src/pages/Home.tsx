@@ -12,7 +12,9 @@ export default function Home() {
   return (
     <>
       <HeroSection />
-      <AgentMarketLiveBanner />
+      <div className="mx-auto max-w-site px-5 py-10 md:px-12">
+        <AgentMarketLiveBanner />
+      </div>
       <ParadigmSection />
       <ConceptSection />
       <FeaturedAgentsSection />

@@ -1,9 +1,9 @@
 {
   "version": 1,
   "network": {
-    "endpoint": "https://wb.example.invalid",
+    "endpoint": "https://wb.lingshu-nebulaai.com",
     "allowedOrigins": [
-      "https://wb.example.invalid"
+      "https://wb.lingshu-nebulaai.com"
     ],
     "allowInsecureLoopback": false
   },

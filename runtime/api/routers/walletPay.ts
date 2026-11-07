@@ -323,32 +323,38 @@ export const walletPayRouter = createRouter({
       const db = getDb();
       const { getFactoryTokenBalance, getUserTokenBalance } = await import("./tokenLedger");
       const [fb, ub] = await Promise.all([getFactoryTokenBalance(fid), getUserTokenBalance(uid)]);
-      const month = rawRows(
-        await db.execute(
-          sql`SELECT
-                COALESCE((
-                  SELECT SUM(f.amount) FROM st_wallet_flows f
-                  WHERE f.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-                    AND f.owner_type='enterprise' AND f.owner_id=${fid}
-                    AND f.direction='out' AND f.biz_type<>${AGENT_TASK_ESCROW_RESERVE_BIZ_TYPE}
-                ),0) + COALESCE((
-                  SELECT SUM(w.amount_job_tokens) FROM st_agent_wage_ledger w
-                  WHERE w.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-                    AND w.factory_id=${fid} AND w.direction='debit'
-                    AND w.wallet_owner_type='enterprise' AND w.wallet_owner_id=${fid}
-                ),0) AS fOut,
-                COALESCE((
-                  SELECT SUM(u.amount) FROM st_wallet_flows u
-                  WHERE u.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-                    AND u.owner_type='user' AND u.owner_id=${uid} AND u.direction='in'
-                ),0) AS uIn`,
-        ).catch(() => [[]]),
-      )[0] ?? {};
+      const [fOutRow, uInRow, agentBalanceRow] = await Promise.all([
+        db.execute(sql`SELECT
+          COALESCE((SELECT SUM(f.amount) FROM st_wallet_flows f
+            WHERE f.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+              AND f.owner_type='enterprise' AND f.owner_id=${fid}
+              AND f.direction='out' AND f.biz_type<>${AGENT_TASK_ESCROW_RESERVE_BIZ_TYPE}),0)
+          + COALESCE((SELECT SUM(w.amount_job_tokens) FROM st_agent_wage_ledger w
+            WHERE w.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+              AND w.factory_id=${fid} AND w.direction='debit'
+              AND w.wallet_owner_type='enterprise' AND w.wallet_owner_id=${fid}),0) AS fOut`).catch(() => [[]]),
+        db.execute(sql`SELECT
+          COALESCE((SELECT SUM(u.amount) FROM st_wallet_flows u
+            WHERE u.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+              AND u.owner_type='user' AND u.owner_id=${uid} AND u.direction='in'),0)
+          + COALESCE((SELECT SUM(w.amount_job_tokens) FROM st_agent_wage_ledger w
+            JOIN st_agent_registrations r ON r.id=w.registration_id
+            WHERE w.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+              AND r.owner_user_id=${uid} AND w.direction='credit'
+              AND w.wallet_owner_type='agent' AND w.wallet_owner_id=w.registration_id),0) AS uIn`).catch(() => [[]]),
+        db.execute(sql`SELECT COALESCE(SUM(w.balance_job_tokens),0) AS agentBalance
+          FROM st_agent_token_wallets w JOIN st_agent_registrations r ON r.id=w.registration_id
+          WHERE r.owner_user_id=${uid}`).catch(() => [[]]),
+      ])
+      const month = {
+        fOut: Number(rawRows(fOutRow)[0]?.fOut ?? 0),
+        uIn: Number(rawRows(uInRow)[0]?.uIn ?? 0),
+        agentBalance: Number(rawRows(agentBalanceRow)[0]?.agentBalance ?? 0),
+      }
       return {
-        factoryBalance: fb, userBalance: ub,
+        factoryBalance: fb, userBalance: ub + month.agentBalance,
         factoryMonthSpend: Number((month as Record<string, unknown>).fOut ?? 0),
         userMonthIncome: Number((month as Record<string, unknown>).uIn ?? 0),
       };
     }),
 });
-

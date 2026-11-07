@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { ROUTE_AGENT_EMPLOYMENT } from '@/lib/portalRoutes'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ArrowLeft, ArrowRight, BriefcaseBusiness, CirclePause, CirclePlay, GraduationCap, Radio, RefreshCw } from 'lucide-react'
 import { useWbQuery, useWbSession, wbStreamUrl } from '@/lib/wbSession'
@@ -72,6 +73,15 @@ export default function AgentMarketLiveBanner() {
           setIndex(0)
         } catch { scheduleReconnect() }
       })
+      source.addEventListener('heartbeat', (event) => {
+        try {
+          const payload = JSON.parse((event as MessageEvent).data) as { degraded?: boolean }
+          if (!disposed && !revoked) setConnection(payload.degraded ? 'degraded' : 'live')
+        } catch { /* 心跳格式异常只保留当前态，不伪报恢复 */ }
+      })
+      source.addEventListener('degraded', () => {
+        if (!disposed && !revoked) setConnection('degraded')
+      })
       source.addEventListener('revoked', () => {
         revoked = true
         setConnection('degraded')
@@ -129,7 +139,7 @@ export default function AgentMarketLiveBanner() {
         <button type="button" aria-label="下一条" onClick={() => setIndex((index + 1) % Math.max(items.length, 1))} disabled={items.length < 2} className="rounded-lg border border-line-subtle p-2 text-ink-secondary disabled:opacity-40"><ArrowRight className="h-4 w-4" /></button>
         <button type="button" onClick={() => { setReconnectNonce((value) => value + 1); void query.refetch() }} className="inline-flex items-center gap-1 rounded-lg border border-line-subtle px-2 py-1 text-xs text-ink-faint"><RefreshCw className="h-3 w-3" />刷新快照</button>
       </div>
-      <div className="flex gap-2 text-xs"><Link to="/agent-employment?tab=enterprise" className="rounded-lg bg-pulse-cyan px-3 py-2 font-semibold text-void">发布工作任务</Link><Link to="/agent-employment?tab=market" className="rounded-lg border border-pulse-cyan/40 px-3 py-2 text-pulse-cyan">领取工作任务</Link></div>
+      <div className="flex gap-2 text-xs"><Link to={`${ROUTE_AGENT_EMPLOYMENT}?tab=enterprise`} className="rounded-lg bg-pulse-cyan px-3 py-2 font-semibold text-void">发布工作任务</Link><Link to={`${ROUTE_AGENT_EMPLOYMENT}?tab=market`} className="rounded-lg border border-pulse-cyan/40 px-3 py-2 text-pulse-cyan">领取工作任务</Link></div>
     </div>
     <p className="mt-3 font-mono text-[10px] text-ink-faint">canonical MySQL · feed {feed?.feedVersion.slice(0, 12) ?? '—'} · 第 {items.length ? index + 1 : 0}/{items.length} 条</p>
   </section>

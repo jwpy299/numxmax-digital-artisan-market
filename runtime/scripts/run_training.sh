@@ -15,14 +15,14 @@ TIMEOUT=(timeout --signal=TERM --kill-after=10s)
 command -v timeout >/dev/null || { echo "timeout 命令缺失——停链"; exit 1; }
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$KNOWN_HOSTS")
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-WORK_ROOT="${TRAINING_WORK_ROOT:-/tmp/numxmax-training-sandbox}/$VER"
+WORK_ROOT="/opt/numxmax/training-sandbox/$VER"
 mkdir -p "$WORK_ROOT"
 chmod 700 "$WORK_ROOT"
 DB_CNF=$(mktemp /tmp/numx-training-db.XXXXXX.cnf)
 chmod 600 "$DB_CNF"
-python3 "$SCRIPT_DIR/training_mysql_config.py" ${TRAINING_DB_ENV:-/tmp/numxmax-training.env} "$DB_CNF"
+python3 "$SCRIPT_DIR/training_mysql_config.py" /opt/numxmax/wb-run/rebuild.env "$DB_CNF"
 export TRAINING_DB_CNF="$DB_CNF"
-MYSQL=(mysql --defaults-extra-file="$DB_CNF" ${TRAINING_DB_NAME:-numx_training})
+MYSQL=(mysql --defaults-extra-file="$DB_CNF" wb_rebuild)
 MAIN_PID=$$
 SAMPLE_OUT="$WORK_ROOT/samples.jsonl"
 export TRAINING_SAMPLE_OUT="$SAMPLE_OUT"
@@ -48,15 +48,15 @@ ${TIMEOUT[@]} 300 python3 "$SCRIPT_DIR/train_by_package.py" "$PKG" > "$WORK_ROOT
 tail -2 "$WORK_ROOT/train.log"
 
 printf '== ② 独立远端目录与训练/评测/脚本上传 ==\n'
-${TIMEOUT[@]} 60 ssh "${SSH_OPTS[@]}" root@compute.example.invalid "mkdir -p ${SCNET_REMOTE_WORK_ROOT:-/opt/train/sandboxes}/$VER" || { fail_job '远端沙箱目录创建失败'; exit 1; }
-${TIMEOUT[@]} 60 scp "${SSH_OPTS[@]}" "$SAMPLE_OUT" "$SAMPLE_OUT.eval.jsonl" "$SCRIPT_DIR/train_lora.py" "$SCRIPT_DIR/eval_reviewer.py" "$SCRIPT_DIR/generation_utils.py" "root@compute.example.invalid:${SCNET_REMOTE_WORK_ROOT:-/opt/train/sandboxes}/$VER/" || { fail_job '训练集或执行脚本上传失败'; exit 1; }
+${TIMEOUT[@]} 60 ssh "${SSH_OPTS[@]}" root@compute.example.invalid "mkdir -p /opt/train/sandboxes/$VER" || { fail_job '远端沙箱目录创建失败'; exit 1; }
+${TIMEOUT[@]} 60 scp "${SSH_OPTS[@]}" "$SAMPLE_OUT" "$SAMPLE_OUT.eval.jsonl" "$SCRIPT_DIR/train_lora.py" "$SCRIPT_DIR/eval_reviewer.py" "$SCRIPT_DIR/generation_utils.py" "root@compute.example.invalid:/opt/train/sandboxes/$VER/" || { fail_job '训练集或执行脚本上传失败'; exit 1; }
 
 printf '== ③ 海光 DCU LoRA（%s）==\n' "$VER"
-${TIMEOUT[@]} 7200 ssh "${SSH_OPTS[@]}" root@compute.example.invalid "mkdir -p ${SCNET_MODEL_ROOT:-/tmp/numxmax-models}/$VER/final && LD_LIBRARY_PATH=${SCNET_DTK_LIB:-/tmp/numxmax-dtk/lib} ${SCNET_PYTHON:-python3} ${SCNET_REMOTE_WORK_ROOT:-/opt/train/sandboxes}/$VER/train_lora.py --data ${SCNET_REMOTE_WORK_ROOT:-/opt/train/sandboxes}/$VER/samples.jsonl --base ${SCNET_BASE_MODEL:-/tmp/numxmax-models/Qwen2.5-1.5B-Instruct} --out ${SCNET_MODEL_ROOT:-/tmp/numxmax-models}/$VER/final --epochs 2" > "$WORK_ROOT/train_run.log" 2>&1 || { fail_job '训练失败'; tail -5 "$WORK_ROOT/train_run.log"; exit 1; }
+${TIMEOUT[@]} 7200 ssh "${SSH_OPTS[@]}" root@compute.example.invalid "mkdir -p /opt/models/$VER/final && LD_LIBRARY_PATH=/opt/dtk-25.04/lib /opt/conda/bin/python /opt/train/sandboxes/$VER/train_lora.py --data /opt/train/sandboxes/$VER/samples.jsonl --base /opt/models/Qwen2.5-1.5B-Instruct --out /opt/models/$VER/final --epochs 2" > "$WORK_ROOT/train_run.log" 2>&1 || { fail_job '训练失败'; tail -5 "$WORK_ROOT/train_run.log"; exit 1; }
 tail -3 "$WORK_ROOT/train_run.log"
 
 printf '== ④ 对拉评测（独立基座 vs LoRA）==\n'
-${TIMEOUT[@]} 1800 ssh "${SSH_OPTS[@]}" root@compute.example.invalid "LD_LIBRARY_PATH=${SCNET_DTK_LIB:-/tmp/numxmax-dtk/lib} ${SCNET_PYTHON:-python3} ${SCNET_REMOTE_WORK_ROOT:-/opt/train/sandboxes}/$VER/eval_reviewer.py --base ${SCNET_BASE_MODEL:-/tmp/numxmax-models/Qwen2.5-1.5B-Instruct} --lora ${SCNET_MODEL_ROOT:-/tmp/numxmax-models}/$VER/final --eval ${SCNET_REMOTE_WORK_ROOT:-/opt/train/sandboxes}/$VER/samples.jsonl.eval.jsonl" > "$WORK_ROOT/eval.log" 2>&1 || { fail_job '对拉评测失败'; tail -5 "$WORK_ROOT/eval.log"; exit 1; }
+${TIMEOUT[@]} 1800 ssh "${SSH_OPTS[@]}" root@compute.example.invalid "LD_LIBRARY_PATH=/opt/dtk-25.04/lib /opt/conda/bin/python /opt/train/sandboxes/$VER/eval_reviewer.py --base /opt/models/Qwen2.5-1.5B-Instruct --lora /opt/models/$VER/final --eval /opt/train/sandboxes/$VER/samples.jsonl.eval.jsonl" > "$WORK_ROOT/eval.log" 2>&1 || { fail_job '对拉评测失败'; tail -5 "$WORK_ROOT/eval.log"; exit 1; }
 tail -10 "$WORK_ROOT/eval.log"
 SCORE=$(grep -oP '对拉得分：\K[0-9]+' "$WORK_ROOT/eval.log" | tail -1)
 [[ "$SCORE" =~ ^([0-9]|[1-9][0-9]|100)$ ]] || { fail_job '评测得分缺失或越界'; exit 1; }
@@ -70,10 +70,10 @@ fi
 printf '== ⑤ 回流 S4 基座与 LoRA 并启动本地推理 ==\n'
 if [ ! -f "$WORK_ROOT/base/config.json" ]; then
   rm -rf "$WORK_ROOT/base"
-  ${TIMEOUT[@]} 300 scp -r "${SSH_OPTS[@]}" "root@compute.example.invalid:${SCNET_BASE_MODEL:-/tmp/numxmax-models/Qwen2.5-1.5B-Instruct}" "$WORK_ROOT/base" || { fail_job '基座回流失败'; exit 1; }
+  ${TIMEOUT[@]} 300 scp -r "${SSH_OPTS[@]}" "root@compute.example.invalid:/opt/models/Qwen2.5-1.5B-Instruct" "$WORK_ROOT/base" || { fail_job '基座回流失败'; exit 1; }
 fi
 if [ ! -f "$WORK_ROOT/final/adapter_config.json" ]; then
   rm -rf "$WORK_ROOT/final"
-  ${TIMEOUT[@]} 300 scp -r "${SSH_OPTS[@]}" "root@compute.example.invalid:${SCNET_MODEL_ROOT:-/tmp/numxmax-models}/$VER/final" "$WORK_ROOT/final" || { fail_job 'LoRA 回流失败'; exit 1; }
+  ${TIMEOUT[@]} 300 scp -r "${SSH_OPTS[@]}" "root@compute.example.invalid:/opt/models/$VER/final" "$WORK_ROOT/final" || { fail_job 'LoRA 回流失败'; exit 1; }
 fi
 bash "$SCRIPT_DIR/start_inference.sh" "$VER" "$WORK_ROOT"

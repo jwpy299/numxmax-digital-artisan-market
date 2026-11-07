@@ -33,7 +33,14 @@ export default function Workbench() {
         setSession(null);
         return;
       }
-    } else clearWorkbenchSession();
+    } else {
+      const cleared = clearWorkbenchSession();
+      if (!cleared) {
+        setSessionError("本地会话清除失败，请检查浏览器存储/隐私设置；当前页面已退出，但原会话可能仍被保留。");
+        setSession(null);
+        return;
+      }
+    }
     setSessionError(null);
     setSession(next);
   }

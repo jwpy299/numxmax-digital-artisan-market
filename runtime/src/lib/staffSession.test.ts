@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { saveStaffSession, STAFF_AUTH_STORAGE_KEY } from "./staffSession";
+import { act, renderHook } from "@testing-library/react";
+import { clearStaffSession, saveStaffSession, STAFF_AUTH_STORAGE_KEY, useStaffSession } from "./staffSession";
 
 const session = {
   token: "staff-token",
@@ -37,9 +38,35 @@ describe("staffSession 保存边界", () => {
     vi.spyOn(window, "dispatchEvent").mockImplementation(() => {
       throw new Error("subscriber");
     });
-    expect(() => saveStaffSession(session)).toThrow("subscriber");
+    expect(saveStaffSession(session)).toEqual({ ok: true });
     expect(localStorage.getItem(STAFF_AUTH_STORAGE_KEY)).toContain(
       "staff-token",
     );
+  });
+
+  it("订阅者异常不会把保存或清除变成未处理异常", () => {
+    vi.spyOn(window, "dispatchEvent").mockImplementation(() => {
+      throw new Error("subscriber");
+    });
+    expect(saveStaffSession(session)).toEqual({ ok: true });
+    expect(clearStaffSession()).toBe(true);
+  })
+
+  it("removeItem 失败仍广播失效且 hook 不恢复旧身份", () => {
+    localStorage.setItem(STAFF_AUTH_STORAGE_KEY, JSON.stringify(session));
+    const listener = vi.fn();
+    window.addEventListener("staff-session-changed", listener);
+    const { result } = renderHook(() => useStaffSession());
+    expect(result.current.session?.token).toBe("staff-token");
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("remove blocked");
+    });
+    let cleared = false;
+    act(() => { cleared = clearStaffSession(); });
+    expect(cleared).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(1);
+    act(() => { result.current.clear(); });
+    expect(result.current.session).toBeNull();
+    window.removeEventListener("staff-session-changed", listener);
   });
 });

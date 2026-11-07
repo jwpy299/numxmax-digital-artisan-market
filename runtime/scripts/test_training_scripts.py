@@ -97,7 +97,7 @@ subprocess.run(["bash", "-n", str(SCRIPTS / "run_training.sh")], check=True)
 subprocess.run(["bash", "-n", str(SCRIPTS / "start_inference.sh")], check=True)
 
 # 当前 S4 缺 torch/transformers/peft 时必须明确失败，不得出现健康页。
-work = pathlib.Path("/tmp/numxmax/training-sandbox/v65-missing-runtime")
+work = pathlib.Path("/opt/numxmax/training-sandbox/v65-missing-runtime")
 (work / "base").mkdir(parents=True, exist_ok=True)
 (work / "final").mkdir(parents=True, exist_ok=True)
 (work / "base/config.json").write_text("{}")

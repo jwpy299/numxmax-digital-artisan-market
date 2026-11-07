@@ -1,13 +1,17 @@
-/** Runtime P1 canonical outbox/lease/checkpoint schema。additive/idempotent；当前仅允许隔离测试库。 */
+/** Runtime P1 canonical outbox/lease/checkpoint schema。additive/idempotent；additive/idempotent；production/test 均可，只有 test 强制隔离库前缀。 */
 import mysql from 'mysql2/promise'
 import { AGENT_TEST_DATABASE_PREFIX } from '../api/lib/agentEconomy'
 
 const url = process.argv[2] ?? process.env.DATABASE_URL
 if (!url) throw new Error('必须显式传库 URL 或设置 DATABASE_URL')
 const conn = await mysql.createConnection(url)
-const [rows] = await conn.query<mysql.RowDataPacket[]>('SELECT DATABASE() AS name')
+const economyMode = process.env.ECONOMY_MODE ?? 'production'
+if (!['production', 'test'].includes(economyMode)) throw new Error('ECONOMY_MODE_INVALID')
+if (economyMode === 'test' && process.env.NODE_ENV === 'production') throw new Error('ECONOMY_MODE_TEST_FORBIDDEN_IN_PRODUCTION')
+if (economyMode === 'test' && process.env.AGENT_EMPLOYMENT_TEST_DATABASE !== '1') throw new Error('AGENT_EMPLOYMENT_TEST_DATABASE_REQUIRED')
+const [rows]=await conn.query<mysql.RowDataPacket[]>('SELECT DATABASE() AS name')
 const databaseName = String(rows[0]?.name ?? '')
-if (!databaseName.startsWith(AGENT_TEST_DATABASE_PREFIX)) throw new Error('RUNTIME_OUTBOX_TEST_DATABASE_REQUIRED')
+if (economyMode === 'test' && !databaseName.startsWith(AGENT_TEST_DATABASE_PREFIX)) throw new Error('RUNTIME_OUTBOX_TEST_DATABASE_REQUIRED')
 
 async function ensureColumn(table: string, column: string, definition: string): Promise<void> {
   const [existing] = await conn.query<mysql.RowDataPacket[]>(
@@ -15,6 +19,17 @@ async function ensureColumn(table: string, column: string, definition: string): 
     [table, column],
   )
   if (existing.length === 0) await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`)
+}
+
+async function ensureUniqueIndex(table: string, index: string, column: string): Promise<void> {
+  const [existing] = await conn.query<mysql.RowDataPacket[]>(
+    'SELECT INDEX_NAME FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND index_name=? AND non_unique=0',
+    [table, index],
+  )
+  if (existing.length > 0) return
+  const [duplicates] = await conn.query<mysql.RowDataPacket[]>(`SELECT \`${column}\` AS value, COUNT(*) AS n FROM \`${table}\` GROUP BY \`${column}\` HAVING COUNT(*) > 1 LIMIT 1`)
+  if (duplicates.length > 0) throw new Error(`RUNTIME_EVIDENCE_DUPLICATES_REQUIRE_RECONCILIATION:${column}`)
+  await conn.query(`ALTER TABLE \`${table}\` ADD UNIQUE KEY \`${index}\` (\`${column}\`)`)
 }
 
 await conn.query(`CREATE TABLE IF NOT EXISTS st_runtime_leases (
@@ -33,6 +48,8 @@ await conn.query(`CREATE TABLE IF NOT EXISTS st_runtime_leases (
   KEY idx_runtime_lease_worker (worker_id, status, expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
 await ensureColumn('st_runtime_leases', 'last_heartbeat_at', 'DATETIME NULL')
+const [tenantLeaseIndexes] = await conn.query<mysql.RowDataPacket[]>("SELECT INDEX_NAME FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='st_runtime_leases' AND index_name='idx_runtime_lease_tenant_lease'")
+if (tenantLeaseIndexes.length === 0) await conn.query('ALTER TABLE st_runtime_leases ADD KEY idx_runtime_lease_tenant_lease (tenant_id, lease_id)')
 
 await conn.query(`CREATE TABLE IF NOT EXISTS st_runtime_outbox_claims (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -61,9 +78,13 @@ await conn.query(`CREATE TABLE IF NOT EXISTS st_runtime_execution_evidence (
   failure_code VARCHAR(128) NULL,
   untrusted_content TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_runtime_evidence_event (event_id),
+  UNIQUE KEY uk_runtime_evidence_dedupe (dedupe_key),
   KEY idx_runtime_evidence_event (event_id, id),
   KEY idx_runtime_evidence_lease (lease_id, lease_epoch, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='执行证据而非交付；不得由此表直接结算'`)
+await ensureUniqueIndex('st_runtime_execution_evidence', 'uk_runtime_evidence_event', 'event_id')
+await ensureUniqueIndex('st_runtime_execution_evidence', 'uk_runtime_evidence_dedupe', 'dedupe_key')
 
 await conn.query(`CREATE TABLE IF NOT EXISTS st_runtime_checkpoints (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -79,5 +100,5 @@ await conn.query(`CREATE TABLE IF NOT EXISTS st_runtime_checkpoints (
   KEY idx_runtime_checkpoint_lease (lease_id, lease_epoch, checkpoint_seq)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
 
-console.log('runtime outbox schema ready (leases/claims/evidence/checkpoints; additive test-only)')
+console.log(`runtime outbox schema ready (leases/claims/evidence/checkpoints; additive; mode=${economyMode})`)
 await conn.end()

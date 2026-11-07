@@ -6,7 +6,9 @@ import { defineConfig } from "vite"
 import { inspectAttr } from 'plugin-inspect-react-code'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => {
+  if (command === "serve") process.env.NEBULA_VITE_DEV_SERVER = "1"
+  return {
   plugins: [
     devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
     inspectAttr(), react()],
@@ -53,4 +55,5 @@ export default defineConfig({
       },
     },
   },
-});
+}
+})

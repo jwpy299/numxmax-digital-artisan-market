@@ -88,6 +88,15 @@ function clearSessionStorage(): boolean {
   return true;
 }
 
+function broadcastWbSessionChange(): void {
+  try {
+    window.dispatchEvent(new Event(WB_SESSION_EVENT));
+  } catch (error) {
+    // 订阅者异常不得改变 token 已保存或已清除的事实。
+    console.warn("[wb-session] broadcast failed:", error instanceof Error ? error.name : "unknown");
+  }
+}
+
 export function saveWbSession(session: WbSession): WbSessionSaveResult {
   let serialized: string;
   try {
@@ -102,15 +111,13 @@ export function saveWbSession(session: WbSession): WbSessionSaveResult {
   try {
     localStorage.setItem(NEBULA_AUTH_STORAGE_KEY, serialized);
     rotateRevision();
-    window.dispatchEvent(new Event(WB_SESSION_EVENT));
-    return { ok: true };
   } catch (error) {
     console.warn(
       "[wb-session] storage write failed:",
       error instanceof Error ? error.name : "unknown",
     );
     const cleared = clearSessionStorage();
-    window.dispatchEvent(new Event(WB_SESSION_EVENT));
+    broadcastWbSessionChange();
     return {
       ok: false,
       error: cleared
@@ -118,6 +125,8 @@ export function saveWbSession(session: WbSession): WbSessionSaveResult {
         : "新会话保存失败，请检查浏览器存储/隐私设置后返回登录页；不要重复注册。",
     };
   }
+  broadcastWbSessionChange();
+  return { ok: true };
 }
 
 export function useWbSessionRevision(): string {
@@ -137,9 +146,10 @@ export function useWbSessionRevision(): string {
   return revision;
 }
 
-export function clearWbSession(): void {
-  clearSessionStorage();
-  window.dispatchEvent(new Event(WB_SESSION_EVENT));
+export function clearWbSession(): boolean {
+  const cleared = clearSessionStorage();
+  broadcastWbSessionChange();
+  return cleared;
 }
 
 /** 读取并监听会话变化（本页 + 跨标签页） */
@@ -159,7 +169,11 @@ export function useWbSession() {
   }, []);
 
   const save = useCallback((s: WbSession) => saveWbSession(s), []);
-  const clear = useCallback(() => clearWbSession(), []);
+  const clear = useCallback(() => {
+    const cleared = clearWbSession();
+    setSession(null);
+    return cleared;
+  }, []);
   return { session, save, clear };
 }
 

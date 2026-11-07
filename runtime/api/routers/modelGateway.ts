@@ -35,12 +35,6 @@ type ProviderId = "scnet" | "kimi" | "deepseek" | "glm" | "minimax" | "idoictos"
 
 const PROVIDERS: readonly ModelProviderDef[] = [
   {
-    id: "scnet", label: "SCNet 超算互联网", envVar: "SCNET_API_KEY",
-    probeUrl: `${SCNET_BASE_URL}/models`,
-    chatUrl: `${SCNET_BASE_URL}/chat/completions`,
-    chatModel: SCNET_MODEL,
-  },
-  {
     id: "kimi", label: "Kimi", envVar: "KIMI_API_KEY",
     probeUrl: "https://api.moonshot.cn/v1/models",
     chatUrl: "https://api.moonshot.cn/v1/chat/completions",
@@ -63,6 +57,12 @@ const PROVIDERS: readonly ModelProviderDef[] = [
     probeUrl: "https://api.minimaxi.com/v1/models",
     chatUrl: "https://api.minimaxi.com/v1/chat/completions",
     chatModel: "MiniMax-Text-01",
+  },
+  {
+    id: "scnet", label: "SCNet 超算互联网", envVar: "SCNET_API_KEY",
+    probeUrl: `${SCNET_BASE_URL}/models`,
+    chatUrl: `${SCNET_BASE_URL}/chat/completions`,
+    chatModel: SCNET_MODEL,
   },
 ] as const;
 
@@ -423,10 +423,15 @@ export function modelSloSnapshot(): Array<{ slot: SlotId; p50: number; slo: numb
 }
 
 /** 槽位调用：主槽失败自动沿 SLOT_FALLBACK 降级，返回结果标注 fallbackFrom。 */
+function scnetStrictMode(): boolean {
+  return process.env.SCNET_REQUIRED === "1";
+}
+
 export async function callSlotChat(
   slot: SlotId,
   opts: CallOpts,
 ): Promise<LlmCallResult> {
+  if (scnetStrictMode()) return { ok: false, reason: "not_configured" };
   const key = readIdoKey();
   if (!key) return { ok: false, reason: "not_configured" };
   if (isDailyCapHit()) return { ok: false, reason: "daily_cap" };
@@ -470,6 +475,7 @@ async function callSlotOnce(
   opts: CallOpts,
   externalSignal?: AbortSignal,
 ): Promise<LlmCallResult> {
+  if (scnetStrictMode()) return { ok: false, reason: "not_configured" };
   const key = readIdoKey();
   if (!key) return { ok: false, reason: "not_configured" };
   const def = SLOT_MODELS[slot];
@@ -610,6 +616,7 @@ const HEDGED_SLOTS: readonly SlotId[] = ["flash", "chat", "orggen"];
  * - 其余槽位：沿用 callSlotChat 顺序降级链路，仅补统计与扩展返回。
  */
 export async function callSlotChatFast(slot: SlotId, opts: CallOpts): Promise<FastCallResult> {
+  if (scnetStrictMode()) throw new Error("callSlotChatFast: not_configured");
   const key = readIdoKey();
   if (!key) throw new Error("callSlotChatFast: not_configured");
   if (isDailyCapHit()) throw new Error("callSlotChatFast: daily_cap");
@@ -698,6 +705,7 @@ async function callSlotOnceStream(
   opts: CallOpts,
   onChunk: StreamChunkHandler,
 ): Promise<StreamCallResult> {
+  if (scnetStrictMode()) return { ok: false, reason: "not_configured" };
   const key = readIdoKey();
   if (!key) return { ok: false, reason: "not_configured" };
   const def = SLOT_MODELS[slot];
@@ -813,6 +821,7 @@ export async function callSlotChatStream(
   opts: CallOpts,
   onChunk: StreamChunkHandler,
 ): Promise<StreamCallResult> {
+  if (scnetStrictMode()) return { ok: false, reason: "not_configured" };
   const key = readIdoKey();
   if (!key) return { ok: false, reason: "not_configured" };
   if (isDailyCapHit()) return { ok: false, reason: "daily_cap" };
@@ -852,6 +861,7 @@ let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
 
 /** 对海禛云网关单模型发 max_tokens=1 暖调用，结果只入 latencyStats。 */
 async function warmIdoModel(model: string, key: string): Promise<void> {
+  if (scnetStrictMode()) return;
   const started = Date.now();
   try {
     const controller = new AbortController();

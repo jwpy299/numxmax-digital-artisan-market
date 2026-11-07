@@ -3,8 +3,12 @@ import { AGENT_TEST_DATABASE_PREFIX } from '../api/lib/agentEconomy'
 const url=process.argv[2] ?? process.env.DATABASE_URL
 if(!url) throw new Error('DATABASE_URL required')
 const conn=await mysql.createConnection(url)
+const economyMode = process.env.ECONOMY_MODE ?? 'production'
+if (!['production', 'test'].includes(economyMode)) throw new Error('ECONOMY_MODE_INVALID')
+if (economyMode === 'test' && process.env.NODE_ENV === 'production') throw new Error('ECONOMY_MODE_TEST_FORBIDDEN_IN_PRODUCTION')
+if (economyMode === 'test' && process.env.AGENT_EMPLOYMENT_TEST_DATABASE !== '1') throw new Error('AGENT_EMPLOYMENT_TEST_DATABASE_REQUIRED')
 const [rows]=await conn.query<mysql.RowDataPacket[]>('SELECT DATABASE() AS name')
-if(!String(rows[0]?.name??'').startsWith(AGENT_TEST_DATABASE_PREFIX)) throw new Error('AGENT_PLUGINS_TEST_DATABASE_REQUIRED')
+if (economyMode === 'test' && !String(rows[0]?.name??'').startsWith(AGENT_TEST_DATABASE_PREFIX)) throw new Error('AGENT_PLUGINS_TEST_DATABASE_REQUIRED')
 await conn.query(`CREATE TABLE IF NOT EXISTS st_agent_plugin_packages (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
  package_key VARCHAR(64) NOT NULL, name VARCHAR(80) NOT NULL, version VARCHAR(32) NOT NULL,
@@ -37,5 +41,5 @@ const ensureColumn = async (table: string, column: string, definition: string) =
 }
 await ensureColumn('st_agent_plugin_entitlements', 'factory_id', 'BIGINT UNSIGNED NULL AFTER package_id')
 await ensureColumn('st_agent_plugin_installs', 'factory_id', 'BIGINT UNSIGNED NULL AFTER package_id')
-console.log('agent plugin schema ready (additive test-only)')
+console.log(`agent plugin schema ready (additive; mode=${economyMode})`)
 await conn.end()

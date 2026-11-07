@@ -42,6 +42,7 @@ beforeAll(async () => {
   await db.execute(sql`DELETE FROM st_agent_plugin_packages WHERE package_key='agent.tasks'`)
   const owner = rawRows(await db.execute(sql`SELECT id, factoryId FROM wb_users WHERE role IN ('member','owner') ORDER BY id LIMIT 1`))[0]
   const other = rawRows(await db.execute(sql`SELECT id FROM wb_users WHERE role IN ('member','owner') ORDER BY id DESC LIMIT 1`))[0]
+  ownerFactoryId = Number(owner.factoryId)
   await db.execute(sql`UPDATE wb_users SET authToken=${authTokenHash(ownerToken)} WHERE id=${Number(owner.id)}`)
   await db.execute(sql`UPDATE wb_users SET authToken=${authTokenHash(otherToken)} WHERE id=${Number(other.id)}`)
   for (const [index, ownerId] of [Number(owner.id), Number(other.id)].entries()) {
@@ -96,4 +97,51 @@ describe('Agent 插件工作台', () => {
     await db.execute(sql`UPDATE st_agent_plugin_entitlements SET factory_id=${ownerFactoryId} WHERE registration_id=${registrationId} AND package_id=${packageV1}`)
     await expect(caller.install({ token: otherToken, registrationId: otherRegistrationId, packageId: packageV1 })).rejects.toThrow()
   })
+
+  it('同一注册切换企业后，安装与 supersede 不跨企业卸载', async () => {
+    if (!enabled) return
+    await caller.install({ token: ownerToken, registrationId, packageId: packageV1 })
+    const owner = rawRows(await db.execute(sql`SELECT owner_user_id AS ownerUserId FROM st_agent_registrations WHERE id=${registrationId}`))[0]
+    try {
+      await db.execute(sql`UPDATE wb_users SET factoryId=2 WHERE id=${Number(owner.ownerUserId)}`)
+      await db.execute(sql`UPDATE st_agent_plugin_entitlements SET factory_id=2 WHERE registration_id=${registrationId}`)
+      const second = await caller.install({ token: ownerToken, registrationId, packageId: packageV1 })
+      expect(second.already).toBe(false)
+      const rows = rawRows(await db.execute(sql`SELECT factory_id AS factoryId, status FROM st_agent_plugin_installs WHERE registration_id=${registrationId} AND package_id=${packageV1} AND status='installed'`))
+      expect(rows.filter((row) => Number(row.factoryId) === ownerFactoryId)).toHaveLength(1)
+      expect(rows.filter((row) => Number(row.factoryId) === 2)).toHaveLength(1)
+    } finally {
+      await db.execute(sql`UPDATE wb_users SET factoryId=${ownerFactoryId} WHERE id=${Number(owner.ownerUserId)}`)
+      await db.execute(sql`UPDATE st_agent_plugin_entitlements SET factory_id=${ownerFactoryId} WHERE registration_id=${registrationId}`)
+      await db.execute(sql`DELETE FROM st_agent_plugin_installs WHERE registration_id=${registrationId} AND factory_id=2`)
+    }
+  })
+
+  it('信任锚配置错误不被空市场或缓存吞掉', async () => {
+    if (!enabled) return
+    const single = process.env.AGENT_PLUGIN_TRUSTED_PUBLIC_KEY
+    const multiple = process.env.AGENT_PLUGIN_TRUSTED_PUBLIC_KEYS
+    try {
+      delete process.env.AGENT_PLUGIN_TRUSTED_PUBLIC_KEY
+      delete process.env.AGENT_PLUGIN_TRUSTED_PUBLIC_KEYS
+      await expect(caller.list()).rejects.toThrow('信任')
+    } finally {
+      if (single === undefined) delete process.env.AGENT_PLUGIN_TRUSTED_PUBLIC_KEY
+      else process.env.AGENT_PLUGIN_TRUSTED_PUBLIC_KEY = single
+      if (multiple === undefined) delete process.env.AGENT_PLUGIN_TRUSTED_PUBLIC_KEYS
+      else process.env.AGENT_PLUGIN_TRUSTED_PUBLIC_KEYS = multiple
+    }
+  })
+
+  it('并发匿名列表共享短缓存与单飞验签，结果一致且不重复击穿', async () => {
+    if (!enabled) return
+    const responses = await Promise.all(Array.from({ length: 16 }, () => caller.list()))
+    for (const response of responses) {
+      expect(response.packages.filter((item) => item.packageKey === 'agent.tasks')).toHaveLength(2)
+      expect(response).toEqual(responses[0])
+    }
+    const cached = await caller.list()
+    expect(cached).toEqual(responses[0])
+  })
+
 })

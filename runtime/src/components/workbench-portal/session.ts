@@ -52,6 +52,6 @@ export function saveWorkbenchSession(
 }
 
 /** 断开：清除本地工作台会话 */
-export function clearWorkbenchSession(): void {
-  clearWbSession();
+export function clearWorkbenchSession(): boolean {
+  return clearWbSession();
 }

@@ -1,4 +1,5 @@
 import { assertRuntimeEventDelivery, assertRuntimeMandateShape, RuntimeLeaseFenceError, type RuntimeEventMandate, type RuntimeLeaseContext } from './runtimeLeaseFence'
+import { parseDbUtc } from './dbUtc'
 
 export interface RuntimeCheckpoint extends RuntimeEventMandate {
   checkpointSeq: number
@@ -15,8 +16,10 @@ function requiredText(value: unknown, code: string): string {
   return value
 }
 function time(value: unknown, code: string): number {
-  if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) throw new RuntimeLeaseFenceError(code)
-  return Date.parse(value)
+  if (typeof value !== 'string') throw new RuntimeLeaseFenceError(code)
+  const parsed = parseDbUtc(value)
+  if (!Number.isFinite(parsed)) throw new RuntimeLeaseFenceError(code)
+  return parsed
 }
 function shape(checkpoint: RuntimeCheckpoint): void {
   assertRuntimeMandateShape(checkpoint)
@@ -36,6 +39,14 @@ export function assertNextRuntimeCheckpoint(previous: RuntimeCheckpoint, next: R
     && previous.leaseId === next.leaseId && previous.leaseEpoch === next.leaseEpoch
     && previous.workerId === next.workerId
   if (!sameIdentity) throw new RuntimeLeaseFenceError('runtime_checkpoint_identity_mismatch')
+  if (next.state === 'took_over') throw new RuntimeLeaseFenceError('runtime_checkpoint_takeover_requires_lease_change')
+  const allowedTransitions: Record<RuntimeCheckpoint['state'], readonly RuntimeCheckpoint['state'][]> = {
+    started: ['progress'],
+    progress: ['progress', 'executed_not_done'],
+    took_over: ['progress', 'executed_not_done'],
+    executed_not_done: [],
+  }
+  if (!allowedTransitions[previous.state].includes(next.state)) throw new RuntimeLeaseFenceError('runtime_checkpoint_state_transition_invalid')
   if (seq(next.checkpointSeq) !== seq(previous.checkpointSeq) + 1) throw new RuntimeLeaseFenceError('runtime_checkpoint_sequence_conflict')
 }
 
@@ -51,10 +62,21 @@ export function createLeaseTakeoverCheckpoint(args: {
 }): Readonly<RuntimeCheckpoint> {
   const { currentLease, previous } = args
   shape(previous)
-  assertRuntimeEventDelivery(previous, currentLease)
-  const expiresAt = time(args.leaseExpiresAt, 'runtime_lease_expiry_invalid')
-  const now = time(args.now, 'runtime_takeover_now_invalid')
-  if (now < expiresAt) throw new RuntimeLeaseFenceError('runtime_lease_not_expired')
+  if (previous.state === 'executed_not_done') throw new RuntimeLeaseFenceError('runtime_checkpoint_terminal')
+  if (currentLease.status !== 'active' && currentLease.status !== 'revoked' && currentLease.status !== 'closed') throw new RuntimeLeaseFenceError('runtime_lease_not_active')
+  // 到期事实只能来自当前 canonical lease；调用方时间仅作交叉校验，不能伪造接管条件。
+  const expiresAt = time(currentLease.expiresAt, 'runtime_lease_expiry_invalid')
+  const claimedExpiresAt = time(args.leaseExpiresAt, 'runtime_lease_expiry_invalid')
+  if (claimedExpiresAt !== expiresAt) throw new RuntimeLeaseFenceError('runtime_lease_expiry_mismatch')
+  const callerNow = time(args.now, 'runtime_takeover_now_invalid')
+  if (Math.abs(Date.now() - callerNow) > 300_000) throw new RuntimeLeaseFenceError('runtime_takeover_clock_skew')
+  const now = Date.now()
+  if (currentLease.status === 'active' && now < expiresAt) throw new RuntimeLeaseFenceError('runtime_lease_not_expired')
+  const sameScope = previous.tenantId === currentLease.tenantId && previous.factoryId === currentLease.factoryId
+    && previous.departmentId === currentLease.departmentId && previous.taskId === currentLease.taskId
+    && previous.leaseId === currentLease.leaseId && previous.workerId === currentLease.workerId
+  if (!sameScope) throw new RuntimeLeaseFenceError('runtime_lease_scope_mismatch')
+  if (previous.leaseEpoch !== currentLease.leaseEpoch) throw new RuntimeLeaseFenceError('runtime_lease_epoch_conflict')
   const nextEpoch = currentLease.leaseEpoch + 1
   if (!Number.isSafeInteger(nextEpoch)) throw new RuntimeLeaseFenceError('runtime_lease_epoch_invalid')
   const next: RuntimeCheckpoint = {

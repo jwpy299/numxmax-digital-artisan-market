@@ -24,7 +24,7 @@
  */
 import { readFileSync } from "node:fs";
 import { createHmac } from "node:crypto";
-import { deflateSync, inflateSync } from "node:zlib";
+import { inflateSync } from "node:zlib";
 import path from "node:path";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
@@ -373,37 +373,21 @@ describe("missed 惰性清扫（sweepMissedCalls + wbProactive.poll 接线）", 
 describe("UserSig（TLSSigAPI@v2 官方算法）", () => {
   // 官方 demo 固定输入（腾讯云 tls-sig-api-v2 全语言示例同组参数）+ 固定时间戳
   const SDK_APP_ID = 1400000000;
-  const SECRET = "public-demo-placeholder-not-a-credential";
+  const SECRET = "5bd2850fff3ecb11d7c805251c51ee463a25727bddc2385f3fa8bfee1bb93b5e";
   const IDENTIFIER = "xiaojun";
   const EXPIRE = 180 * 86400;
   const FIXED_TIME = 1754899200; // 2025-08-11T08:00:00Z
-  const expectedSig = createHmac("sha256", SECRET).update(
-    `TLS.identifier:${IDENTIFIER}
-` +
-    `TLS.sdkappid:${SDK_APP_ID}
-` +
-    `TLS.time:${FIXED_TIME}
-` +
-    `TLS.expire:${EXPIRE}
-`,
-    "utf8",
-  ).digest("base64");
-  const GOLDEN_DOC_JSON = JSON.stringify({
-    "TLS.ver": "2.0",
-    "TLS.identifier": IDENTIFIER,
-    "TLS.sdkappid": SDK_APP_ID,
-    "TLS.expire": EXPIRE,
-    "TLS.time": FIXED_TIME,
-    "TLS.sig": expectedSig,
-  });
-  const OFFICIAL_REFERENCE = deflateSync(Buffer.from(GOLDEN_DOC_JSON, "utf8")).toString("base64").replace(/\+/g, "*").replace(/\//g, "-").replace(/=/g, "_");
-
   // 对拍基准：独立参考实现（Python 按官方文档 647/17275 步骤：HMAC-SHA256→JSON→zlib deflate→
   // base64 转义）对同一固定输入的计算结果。deflate 压缩流随 zlib 构建版本不同可能有字节差异
   //（TRTC 服务端只做 inflate 校验，官方各语言 SDK 压缩流亦不完全同字节），故对拍口径 =
   // ① 确定性核心（sigDoc JSON 串 + HMAC sig）逐字节一致；② 参考实现产出的签名串在本实现可
   // 正确 inflate 出同一 sigDoc（跨实现互认，证明格式兼容）。
-  // 参考签名串由占位密钥与文档动态生成。
+  const OFFICIAL_REFERENCE =
+    "eJyrVgrxCdYrSy1SslIy0jNQ0gHzM1NS80oy0zLBwhWZiflZpXlQqeKU7MSCgswUJStDEwMogMikVhRkFqUCxU1NTY3goiWZuSAxc1MTC0tLI5hocWY60OTiHNMMbxfvSv9wt1KvcDfnUH8XX7OcvBIfD4PgUpdcv7z0EM9yfVP9-KhQW6VaALLgMiE_";
+  // Python 参考实现算得的 sigDoc JSON（逐字节 golden）
+  const GOLDEN_DOC_JSON =
+    '{"TLS.ver":"2.0","TLS.identifier":"xiaojun","TLS.sdkappid":1400000000,"TLS.expire":15552000,"TLS.time":1754899200,"TLS.sig":"sl5hKDKyOWFuJWFCUODM6lntLH0SuDmNngTIw/5/oZU="}';
+
   const unescape = (sig: string) => sig.replace(/\*/g, "+").replace(/-/g, "/").replace(/_/g, "=");
   const inflateSig = (sig: string) =>
     inflateSync(Buffer.from(unescape(sig), "base64")).toString("utf8");
@@ -430,6 +414,8 @@ describe("UserSig（TLSSigAPI@v2 官方算法）", () => {
       `TLS.sdkappid:${SDK_APP_ID}\n` +
       `TLS.time:${FIXED_TIME}\n` +
       `TLS.expire:${EXPIRE}\n`;
+    const expectedSig = createHmac("sha256", SECRET).update(content, "utf8").digest("base64");
+    expect(expectedSig).toBe("sl5hKDKyOWFuJWFCUODM6lntLH0SuDmNngTIw/5/oZU="); // Python golden
     expect(doc["TLS.sig"]).toBe(expectedSig);
     // UserSig 字符集：base64 URL 转义后绝不含 + / =
     expect(sig).toMatch(/^[A-Za-z0-9*\-_]+$/);

@@ -866,7 +866,7 @@ export const adminRouter = createRouter({
   systemHealth: publicQuery.input(tokenInput).query(async ({ input }) => {
     await requireAdmin(input.token);
     const portalUrl = process.env.PORTAL_URL ?? "https://downloads.example.invalid";
-    const workbenchUrl = process.env.WORKBENCH_URL ?? "https://wb.example.invalid";
+    const workbenchUrl = process.env.WORKBENCH_URL ?? "https://wb.lingshu-nebulaai.com";
 
     const database = await dbProbeTimed(); // R24 票②：计时包装走 dbProbeTimed 单点（不再两处手写）
 

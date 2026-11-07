@@ -4,7 +4,7 @@
   "entry": "index.cjs",
   "permissions": {
     "network": [
-      "https://wb.example.invalid"
+      "https://wb.lingshu-nebulaai.com"
     ],
     "allowInsecureLoopback": false,
     "maxPayloadBytes": 131072,

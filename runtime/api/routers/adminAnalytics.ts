@@ -25,7 +25,8 @@ import { logQueryErrorThrottled } from "../queries/rawRows";
 import { sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createRouter, publicQuery } from "../middleware";
-import { getDb } from "../queries/connection";
+import { getDb, getProbeConnectionUrl } from "../queries/connection";
+import { env } from "../lib/env";
 import { rawRows } from "../queries/rawRows"; // canonical 直引（A 堆对齐①——不经 ./terminal 中转[portal#31 循环断链教训面]）
 import { requireAdmin } from "./terminal"; // requireAdmin 暂留 terminal 面（委派回退差异——adminGate 对齐挂账 P-ADMIN-GATE-ALIGN）
 
@@ -68,6 +69,12 @@ async function settleAudit(promise: Promise<unknown>, budgetMs = 250): Promise<v
   } finally { if (timer) clearTimeout(timer) }
 }
 
+async function closeAuditConnection(connection?: AuditConnection): Promise<void> {
+  if (!connection) return
+  try { await settleAudit(connection.end()) } catch { /* end 同步抛或迟到 reject 均按 best-effort 收敛 */ }
+  try { connection.destroy() } catch { /* 已 teardown 的流可能同步抛，不能覆盖审计三态结果 */ }
+}
+
 class AdminAuditOperation {
   private connection?: AuditConnection
   private killer?: AuditConnection
@@ -84,9 +91,8 @@ class AdminAuditOperation {
 
   private async open(slot: 'connection' | 'killer'): Promise<AuditConnection | null> {
     const connection = await mysql.createConnection(this.url) as unknown as AuditConnection
-    if (this.closed) {
-      await settleAudit(connection.end())
-      connection.destroy()
+    if (this.closed && slot === 'connection') {
+      await closeAuditConnection(connection)
       return null
     }
     this[slot] = connection
@@ -96,7 +102,6 @@ class AdminAuditOperation {
   async run(): Promise<void> {
     const connection = await this.open('connection')
     if (!connection) return
-    if (!await this.open('killer')) return
     const [threadRows] = await connection.query('SELECT CONNECTION_ID() AS id') as [{ id: number }[]]
     if (this.closed) return
     this.threadId = Number(threadRows[0]?.id ?? 0)
@@ -109,17 +114,21 @@ class AdminAuditOperation {
 
   async cancel(): Promise<void> {
     this.closed = true
-    if (this.killer && this.threadId > 0) await settleAudit(this.killer.query(`KILL QUERY ${this.threadId}`))
-    this.connection?.destroy()
-    this.killer?.destroy()
+    try {
+      if (this.threadId > 0) {
+        const killer = await this.open('killer')
+        if (killer) await settleAudit(killer.query(`KILL QUERY ${this.threadId}`))
+      }
+    } catch { /* killer 懒建或 KILL 失败仍收敛主连接，不覆盖 timeout 语义 */ }
+    await closeAuditConnection(this.connection)
+    await closeAuditConnection(this.killer)
   }
 
   async close(): Promise<void> {
     this.closed = true
     for (const connection of [this.connection, this.killer]) {
       if (!connection) continue
-      await settleAudit(connection.end())
-      connection.destroy()
+      await closeAuditConnection(connection)
     }
   }
 }
@@ -127,6 +136,10 @@ class AdminAuditOperation {
 function auditError(error: unknown): void {
   logQueryErrorThrottled('adminAudit', error)
 }
+
+const ADMIN_AUDIT_MAX_INFLIGHT = 4
+let adminAuditInFlight = 0
+export function __resetAdminAuditInFlightForTest(): void { adminAuditInFlight = 0 }
 
 /** 需要明确结果时使用：timeout 表示结果未知，已尽力 KILL，并不等同于写入失败。 */
 export async function writeAdminAuditResult(
@@ -139,12 +152,13 @@ export async function writeAdminAuditResult(
   let detailJson: string | null = null
   try { detailJson = detail == null ? null : JSON.stringify(detail).slice(0, 4000) }
   catch { detailJson = JSON.stringify({ error: 'unserializable_detail' }) }
-  const url = process.env.DATABASE_URL
-  if (!url) { auditError(new Error('ADMIN_AUDIT_DATABASE_URL_MISSING')); return 'failed' }
+  if (!env.databaseUrl) { auditError(new Error('ADMIN_AUDIT_DATABASE_URL_MISSING')); return 'failed' }
   const configured = process.env.ADMIN_AUDIT_TIMEOUT_MS
   const parsed = configured?.trim() ? Number(configured) : 5_000
   const timeoutMs = Number.isSafeInteger(parsed) && parsed > 0 && parsed <= 2_147_483_647 ? parsed : 5_000
-  const operation = new AdminAuditOperation(url, [adminUserId, adminName.slice(0, 64), action.slice(0, 64), target.slice(0, 191), detailJson])
+  if (adminAuditInFlight >= ADMIN_AUDIT_MAX_INFLIGHT) { auditError(new Error('ADMIN_AUDIT_INFLIGHT_LIMIT')); return 'failed' }
+  adminAuditInFlight += 1
+  const operation = new AdminAuditOperation(getProbeConnectionUrl(Math.min(timeoutMs, 1_000)), [adminUserId, adminName.slice(0, 64), action.slice(0, 64), target.slice(0, 191), detailJson])
   let timer: ReturnType<typeof setTimeout> | null = null
   let timedOut = false
   const work = operation.run()
@@ -164,6 +178,7 @@ export async function writeAdminAuditResult(
     return timedOut ? 'timeout' : 'failed'
   } finally {
     if (timer) clearTimeout(timer)
+    adminAuditInFlight -= 1
     await operation.close()
   }
 }

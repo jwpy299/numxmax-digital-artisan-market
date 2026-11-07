@@ -12,7 +12,7 @@ def option_value(value: str) -> str:
 
 def main() -> None:
     if len(sys.argv) != 3:
-        raise SystemExit("usage: training_mysql_config.py <env-file> <output.cnf>")
+        raise SystemExit("usage: training_mysql_config.py <rebuild.env> <output.cnf>")
     source, output = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
     database_url = ""
     for line in source.read_text(encoding="utf-8").splitlines():

@@ -240,6 +240,27 @@ await ensureColumn("st_agent_work_tasks", "department_id", "department_id VARCHA
 await ensureColumn("st_agent_work_tasks", "cancel_reason", "cancel_reason VARCHAR(500) NULL AFTER accepted_at");
 await ensureColumn("st_agent_work_tasks", "cancelled_by", "cancelled_by BIGINT UNSIGNED NULL AFTER cancel_reason");
 await ensureColumn("st_agent_work_tasks", "cancelled_at", "cancelled_at DATETIME NULL AFTER cancelled_by");
+// 公开实时大屏同样走生产可用的 additive 链；不能只存在 test-only migration。
+await ensureColumn("st_agent_work_tasks", "public_feed", "public_feed TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否由企业显式授权进入公开实时大屏；默认不公开' AFTER status");
+await ensureColumn("st_agent_work_tasks", "public_actor_name", "public_actor_name VARCHAR(80) NULL COMMENT '企业自行填写的公开显示名，不直接暴露工商名称' AFTER public_feed");
+await conn.query(`CREATE TABLE IF NOT EXISTS st_agent_task_visibility_audit (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  task_id BIGINT UNSIGNED NOT NULL,
+  factory_id BIGINT UNSIGNED NOT NULL,
+  actor_user_id BIGINT UNSIGNED NOT NULL,
+  from_feed TINYINT(1) NOT NULL,
+  to_feed TINYINT(1) NOT NULL,
+  public_actor_name VARCHAR(80) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_agent_task_visibility_task (task_id, id),
+  KEY idx_agent_task_visibility_factory (factory_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='企业任务公开范围变更审计'`);
+const [feedIndexes] = await conn.query<mysql.RowDataPacket[]>(
+  "SELECT INDEX_NAME FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='st_agent_work_tasks' AND index_name='idx_agent_work_public_feed'",
+);
+if (feedIndexes.length === 0) {
+  await conn.query("ALTER TABLE st_agent_work_tasks ADD KEY idx_agent_work_public_feed (public_feed, status, deadline_at, created_at)");
+}
 
 await conn.query(`CREATE TABLE IF NOT EXISTS st_agent_task_claims (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -345,6 +366,18 @@ await conn.query(`ALTER TABLE enterprises MODIFY COLUMN reserved_job_tokens INT 
 await ensureColumn("st_agent_payment_refunds", "attempt_count", "attempt_count INT NOT NULL DEFAULT 0");
 await ensureColumn("st_agent_payment_refunds", "next_retry_at", "next_retry_at DATETIME NULL");
 await ensureColumn("st_agent_payment_orders", "amount_job_tokens", "amount_job_tokens INT NULL");
+await ensureColumn("st_agent_payment_orders", "order_cycle", "order_cycle INT NOT NULL DEFAULT 1 AFTER attempt_no");
+await ensureColumn("st_agent_payment_orders", "out_trade_no", "out_trade_no VARCHAR(64) NULL AFTER order_no");
+await ensureColumn("st_agent_payment_orders", "prepay_id", "prepay_id VARCHAR(64) NULL AFTER provider_ref");
+await ensureColumn("st_agent_payment_orders", "code_url", "code_url TEXT NULL AFTER prepay_id");
+await ensureColumn("st_agent_payment_orders", "transaction_id", "transaction_id VARCHAR(64) NULL AFTER code_url");
+await ensureColumn("st_agent_payment_orders", "expires_at", "expires_at DATETIME NULL AFTER idempotency_key");
+const [tradeIndexRows] = await conn.query<mysql.RowDataPacket[]>(
+  "SELECT index_name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='st_agent_payment_orders' AND index_name='uk_agent_payment_trade_no' LIMIT 1",
+);
+if (tradeIndexRows.length === 0) {
+  await conn.query('ALTER TABLE st_agent_payment_orders ADD UNIQUE KEY uk_agent_payment_trade_no (out_trade_no)');
+}
 await ensureColumn("st_agent_payment_refunds", "amount_job_tokens", "amount_job_tokens INT NULL");
 await conn.query(`UPDATE st_agent_payment_orders SET amount_job_tokens=amount_cents/10 WHERE amount_job_tokens IS NULL`);
 await conn.query(`UPDATE st_agent_payment_refunds SET amount_job_tokens=amount_cents/10 WHERE amount_job_tokens IS NULL`);

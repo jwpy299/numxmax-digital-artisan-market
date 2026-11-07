@@ -19,8 +19,24 @@ describe('只读 Watchdog 快照扫描', () => {
     expect(evidence.map((item) => item.classification)).toEqual(['stuck', 'lease_revoked'])
     expect(evidence.every((item) => item.readOnly && !item.mutatesCanonicalState && item.repairChannel === 'backend_state_machine')).toBe(true)
   })
+  it('closed 是终态，不因心跳停止而误报 stuck', () => {
+    const emit = vi.fn()
+    const snapshots = [{ lease: { ...lease, status: 'closed' as const }, lastHeartbeatAt: '2026-11-04T16:00:00Z' }]
+    expect(scanRuntimeWatchdogSnapshots({ snapshots, ...args, emit })).toBe(0)
+    expect(emit).not.toHaveBeenCalled()
+  })
   it('非法时间或超时有界校验失败', () => {
     expect(() => scanRuntimeWatchdogSnapshots({ snapshots: [], now: 'bad', heartbeatTimeoutMs: 1, emit: vi.fn() })).toThrow('runtime_watchdog_now_invalid')
     expect(() => scanRuntimeWatchdogSnapshots({ snapshots: [], now: args.now, heartbeatTimeoutMs: 0, emit: vi.fn() })).toThrow('runtime_watchdog_timeout_invalid')
   })
+  it('派生 eventId 超过 128 字符时哈希截断且不改变告警', () => {
+    const emit = vi.fn()
+    const snapshots = [{ lease: { ...lease, leaseId: 'l'.repeat(128), leaseEpoch: 99 }, lastHeartbeatAt: '2026-11-04T16:00:00Z' }]
+    expect(scanRuntimeWatchdogSnapshots({ snapshots, ...args, emit })).toBe(1)
+    const evidence = emit.mock.calls[0][0]
+    expect(evidence.scope.eventId.length).toBeLessThanOrEqual(128)
+    expect(evidence.scope.eventId).toMatch(/^watchdog-[a-f0-9]{64}$/)
+    expect(evidence.classification).toBe('stuck')
+  })
+
 })

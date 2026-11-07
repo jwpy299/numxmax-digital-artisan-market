@@ -1,5 +1,6 @@
 /** 下载通道管理：真实 APK 才能发布；版本/URL 一致；缺失配置可显式引导；双写带清理与补偿回滚。 */
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -16,7 +17,20 @@ import { PORTAL_PUBLIC, PORTAL_DIST_PUBLIC, DESKTOP_EXE, DESKTOP_FILE, DOWNLOAD_
 const tokenInput = z.object({ token: z.string().trim().min(1) });
 const reviewTokenInput = z.object({ reviewToken: z.string().trim().min(1) });
 
+
+const RELEASE_API_SNAPSHOT_JSON = `api-${RELEASE_JSON}`;
+const RELEASE_API_SNAPSHOT_SHA = 'api-SHA256SUMS';
+const RELEASE_API_SNAPSHOT_HASHES = 'api-snapshot-hashes.tsv';
+
 interface ReleaseJson { version: string; minVersion: string; url: string; leanUrl?: string; notes: string }
+type ReleaseLockMetadata = { lockCleanupUnknown?: boolean; warning?: string }
+type ReleaseMutationResult<T extends object> = Omit<T, keyof ReleaseLockMetadata> & {
+  ok: true;
+  auditWritten: boolean;
+  auditOutcome: 'written' | 'failed' | 'timeout';
+  warning: string | null;
+  lockCleanupUnknown?: boolean;
+}
 
 function validRelease(d: unknown): d is ReleaseJson {
   const x = d as Partial<ReleaseJson>;
@@ -36,11 +50,10 @@ function readRelease(): ReleaseJson | null {
   }
 }
 
-function readReleaseSnapshot(version: string): ReleaseJson | null {
-  const file = path.join(RELEASE_MANIFEST_HISTORY_DIR, version, RELEASE_JSON);
+function readReleaseSnapshotFile(file: string, version: string): ReleaseJson | null {
   try {
     const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf-8"));
-    if (!validRelease(parsed) || parsed.version !== version || parsed.url !== apkUrl(version)) {
+    if (!validRelease(parsed) || parsed.version !== version || !isReleaseUrlForVersion(parsed.url, version)) {
       throw new TRPCError({ code: "PRECONDITION_FAILED", message: `历史快照与目标版本或下载链不一致：${version}` });
     }
     return parsed;
@@ -48,6 +61,54 @@ function readReleaseSnapshot(version: string): ReleaseJson | null {
     if ((e as { code?: string }).code === "ENOENT") return null;
     throw e;
   }
+}
+
+function readReleaseSnapshot(version: string): ReleaseJson | null {
+  const dir = path.join(RELEASE_MANIFEST_HISTORY_DIR, version);
+  // 新写入与恢复脚本分名；旧 API 快照及恢复脚本快照仅作只读兼容。
+  return readReleaseSnapshotFile(path.join(dir, RELEASE_API_SNAPSHOT_JSON), version)
+    ?? readReleaseSnapshotFile(path.join(dir, RELEASE_JSON), version);
+}
+
+function archiveReleaseSnapshot(current: ReleaseJson): void {
+  if (current.version === "0.0.0") return;
+  const dir = path.join(RELEASE_MANIFEST_HISTORY_DIR, current.version);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  fs.chmodSync(dir, 0o700);
+  const body = JSON.stringify(current, null, 2) + "\n";
+  const target = path.join(dir, RELEASE_API_SNAPSHOT_JSON);
+  try {
+    const previous = fs.readFileSync(target, "utf-8");
+    const parsed: unknown = JSON.parse(previous);
+    // 回滚会合法改变 notes/minVersion；首份快照只钉版本与下载文件身份，不阻断后续发布。
+    if (!validRelease(parsed) || parsed.version !== current.version || !isReleaseUrlForVersion(parsed.url, current.version) || !isReleaseUrlForVersion(current.url, current.version)) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: `历史快照同版身份冲突，拒绝覆盖：${current.version}` });
+    }
+    return;
+  } catch (error) {
+    if ((error as { code?: string }).code !== "ENOENT") throw error;
+  }
+  const nonce = `${process.pid}-${Date.now()}`;
+  const writeAtomic = (file: string, content: string) => {
+    const temp = `${file}.tmp-${nonce}`;
+    try {
+      fs.writeFileSync(temp, content, "utf-8");
+      syncReleaseFile(temp);
+      fs.renameSync(temp, file);
+    } finally { fs.rmSync(temp, { force: true }); }
+  };
+  const digest = createHash("sha256").update(body).digest("hex");
+  writeAtomic(target, body);
+  writeAtomic(path.join(dir, RELEASE_API_SNAPSHOT_SHA), `${digest}  ${RELEASE_API_SNAPSHOT_JSON}\n`);
+  writeAtomic(path.join(dir, RELEASE_API_SNAPSHOT_HASHES), `version\tsnapshot_sha256\n${current.version}\t${digest}\n`);
+}
+
+function isReleaseUrlForVersion(url: string, version: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const expected = new URL(apkUrl(version));
+    return parsed.protocol === expected.protocol && parsed.pathname === expected.pathname;
+  } catch { return false; }
 }
 
 function compareSemver(a: string, b: string): number {
@@ -127,7 +188,7 @@ function writeRelease(d: ReleaseJson): void {
 }
 
 const RELEASE_LOCK_NAME = "admin-release:app-release-json";
-function withReleaseLock<T>(fn: () => Promise<T>): Promise<T> {
+function withReleaseLock<T>(fn: () => Promise<T>): Promise<T & ReleaseLockMetadata> {
   return withNamedDbConnection(RELEASE_LOCK_NAME, () => withReleaseFileLock(fn), {
     busyMessage: "另一发布/回滚正在执行——请稍后重试",
     unavailableMessage: "发布锁暂不可用——稍后重试",
@@ -206,11 +267,22 @@ export const adminReleaseRouter = createRouter({
           }
           requireApkBoth(input.version);
           const base: ReleaseJson = existing ?? { version: "0.0.0", minVersion: input.version, url: "", notes: "" };
+          if (existing) archiveReleaseSnapshot(existing);
           writeRelease({ ...base, minVersion: input.version, version: input.version, url: apkUrl(input.version), notes: input.notes });
           return { version: input.version, url: apkUrl(input.version) };
         });
         const auditOutcome = await writeAdminAuditResult(sign.operatorId, sign.operator, "adminRelease.publish", `v${input.version}`, { url: apkUrl(input.version), operator: sign.operator, reviewer: sign.reviewer, reviewerId: sign.reviewerId });
-        return { ok: true as const, ...published, auditWritten: auditOutcome === "written", auditOutcome, warning: auditOutcome === "written" ? null : auditOutcome === "timeout" ? "审计结果未知（写入超时），请人工核查，禁止盲目重试" : "发布已完成，审计写入失败；请人工核查，禁止盲目重试" };
+        const lockWarning = published.lockCleanupUnknown ? published.warning : null
+        let auditNotice: string | null = null
+        if (auditOutcome === "timeout") auditNotice = "审计结果未知（写入超时），请人工核查，禁止盲目重试"
+        else if (auditOutcome !== "written") auditNotice = "发布已完成，审计写入失败；请人工核查，禁止盲目重试"
+        return Object.assign({}, published, {
+          ok: true as const,
+          auditWritten: auditOutcome === "written",
+          auditOutcome,
+          warning: [lockWarning, auditNotice].filter((value): value is string => Boolean(value)).join('；') || null,
+          lockCleanupUnknown: published.lockCleanupUnknown,
+        }) satisfies ReleaseMutationResult<typeof published>;
       });
     }),
 
@@ -228,11 +300,21 @@ export const adminReleaseRouter = createRouter({
           const snapshot = readReleaseSnapshot(input.version);
           const base: ReleaseJson = snapshot ?? existing ?? { version: "0.0.0", minVersion: input.version, url: "", notes: "" };
           const minVersion = compareSemver(input.version, base.minVersion) < 0 ? input.version : base.minVersion;
-          writeRelease({ ...base, minVersion, version: input.version, url: apkUrl(input.version), notes: `回滚至 v${input.version}（原 ${existing?.version ?? "未初始化"}）` });
+          writeRelease({ ...base, leanUrl: existing?.leanUrl ?? base.leanUrl, minVersion, version: input.version, url: apkUrl(input.version), notes: `回滚至 v${input.version}（原 ${existing?.version ?? "未初始化"}）` });
           return { version: input.version, url: apkUrl(input.version), fromVersion: existing?.version ?? null, snapshotVerified: snapshot !== null };
         });
         const auditOutcome = await writeAdminAuditResult(sign.operatorId, sign.operator, "adminRelease.rollback", `v${input.version}`, { from: rolledBack.fromVersion, operator: sign.operator, reviewer: sign.reviewer, reviewerId: sign.reviewerId });
-        return { ok: true as const, ...rolledBack, auditWritten: auditOutcome === "written", auditOutcome, warning: auditOutcome === "written" ? null : auditOutcome === "timeout" ? "审计结果未知（写入超时），请人工核查，禁止盲目重试" : "回滚已完成，审计写入失败；请人工核查，禁止盲目重试" };
+        const lockWarning = rolledBack.lockCleanupUnknown ? rolledBack.warning : null
+        let auditNotice: string | null = null
+        if (auditOutcome === "timeout") auditNotice = "审计结果未知（写入超时），请人工核查，禁止盲目重试"
+        else if (auditOutcome !== "written") auditNotice = "回滚已完成，审计写入失败；请人工核查，禁止盲目重试"
+        return Object.assign({}, rolledBack, {
+          ok: true as const,
+          auditWritten: auditOutcome === "written",
+          auditOutcome,
+          warning: [lockWarning, auditNotice].filter((value): value is string => Boolean(value)).join('；') || null,
+          lockCleanupUnknown: rolledBack.lockCleanupUnknown,
+        }) satisfies ReleaseMutationResult<typeof rolledBack>;
       });
     }),
 });

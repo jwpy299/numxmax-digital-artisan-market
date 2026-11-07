@@ -11,19 +11,19 @@ const path = require("node:path");
 const SHELLS = {
   personal: {
     title: "NumX Max·个人工作台",
-    url: "https://wb.example.invalid",
+    url: "https://wb.lingshu-nebulaai.com",
     width: 1280,
     height: 860,
   },
   enterprise: {
     title: "NumX Max·企业工作台",
-    url: "https://wb.example.invalid", // 企业面路径待确认（部门舱入口）
+    url: "https://wb.lingshu-nebulaai.com", // 企业面路径待确认（部门舱入口）
     width: 1366,
     height: 900,
   },
   admin: {
     title: "NumX Max·超级终端",
-    url: "https://admin.example.invalid",
+    url: "https://admin.lingshu-nebulaai.com",
     width: 1440,
     height: 920,
   },

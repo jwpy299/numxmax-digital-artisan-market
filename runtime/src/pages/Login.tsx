@@ -42,7 +42,9 @@ export default function Login() {
   function finish(session: WbSession) {
     const saved = saveWbSession(session);
     if (!saved.ok) {
-      setFinishError(saved.error);
+      const registered = tab !== "login";
+      setFinishError(registered ? `账号已创建，但本地会话保存失败，请直接登录，禁止重复注册。${saved.error}` : saved.error);
+      if (registered) setTab("login");
       return;
     }
     setFinishError(null);
