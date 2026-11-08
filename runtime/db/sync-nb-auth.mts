@@ -7,7 +7,7 @@
  * - wb_users 加列：phone（唯一索引，存量 NULL）/ realName / idCardMasked / idCardHash /
  *   kind ENUM('person','enterprise') DEFAULT 'enterprise'
  * - wb_factories 加列：creditCode / industryGroup DEFAULT '工业制造'（存量防御回填）
- * - 幂等种子 2 个演示账号（演示口令均为 Nebula123456，仅内测演示用）：
+ * - 幂等种子 2 个演示账号（演示口令随机生成，仅当前进程使用；公开快照不内置口令）：
  *   · 企业演示「星云智造示范工厂」phone 13900000001，工业制造，4 个示例部门（带人数/职能）
  *   · 个人演示「陈工匠」phone 13900000002，身份证 110101199003077758
  *     （GB11643 校验位验证：加权和 246，246 mod 11 = 4 → 映射 '10X98765432'[4] = '8'，
@@ -148,7 +148,7 @@ const demoUsers: DemoUser[] = [
   {
     username: "13900000001",
     phone: "13900000001",
-    password: "Nebula123456",
+    password: randomBytes(12).toString("hex"),
     displayName: "星云智造管理员",
     realName: "星云智造管理员",
     role: "owner",
@@ -159,7 +159,7 @@ const demoUsers: DemoUser[] = [
   {
     username: "13900000002",
     phone: "13900000002",
-    password: "Nebula123456",
+    password: randomBytes(12).toString("hex"),
     displayName: "陈工匠",
     realName: "陈工匠",
     role: "member",

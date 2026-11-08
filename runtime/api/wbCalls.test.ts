@@ -373,7 +373,7 @@ describe("missed 惰性清扫（sweepMissedCalls + wbProactive.poll 接线）", 
 describe("UserSig（TLSSigAPI@v2 官方算法）", () => {
   // 官方 demo 固定输入（腾讯云 tls-sig-api-v2 全语言示例同组参数）+ 固定时间戳
   const SDK_APP_ID = 1400000000;
-  const SECRET = "5bd2850fff3ecb11d7c805251c51ee463a25727bddc2385f3fa8bfee1bb93b5e";
+  const SECRET = "0".repeat(64);
   const IDENTIFIER = "xiaojun";
   const EXPIRE = 180 * 86400;
   const FIXED_TIME = 1754899200; // 2025-08-11T08:00:00Z
@@ -383,10 +383,10 @@ describe("UserSig（TLSSigAPI@v2 官方算法）", () => {
   // ① 确定性核心（sigDoc JSON 串 + HMAC sig）逐字节一致；② 参考实现产出的签名串在本实现可
   // 正确 inflate 出同一 sigDoc（跨实现互认，证明格式兼容）。
   const OFFICIAL_REFERENCE =
-    "eJyrVgrxCdYrSy1SslIy0jNQ0gHzM1NS80oy0zLBwhWZiflZpXlQqeKU7MSCgswUJStDEwMogMikVhRkFqUCxU1NTY3goiWZuSAxc1MTC0tLI5hocWY60OTiHNMMbxfvSv9wt1KvcDfnUH8XX7OcvBIfD4PgUpdcv7z0EM9yfVP9-KhQW6VaALLgMiE_";
+    "eJyrVgrxCdYrSy1SslIy0jNQ0gHzM1NS80oy0zLBwhWZiflZpXlQqeKU7MSCgswUJStDEwMogMikVhRkFqUCxU1NTY3goiWZuSAxc1MTC0tLI5hocWY60OTCMCfHcm1np3wf0wiTsuSyzMwAF0e-gJCqsoj8Spec7FSfylwDxzLLMB9PW6VaALkiMqs_";
   // Python 参考实现算得的 sigDoc JSON（逐字节 golden）
   const GOLDEN_DOC_JSON =
-    '{"TLS.ver":"2.0","TLS.identifier":"xiaojun","TLS.sdkappid":1400000000,"TLS.expire":15552000,"TLS.time":1754899200,"TLS.sig":"sl5hKDKyOWFuJWFCUODM6lntLH0SuDmNngTIw/5/oZU="}';
+    '{"TLS.ver":"2.0","TLS.identifier":"xiaojun","TLS.sdkappid":1400000000,"TLS.expire":15552000,"TLS.time":1754899200,"TLS.sig":"qVBAw+CBoL5X4vcviiPDANPTzvXoyDlkeLym0Av9VLI="}';
 
   const unescape = (sig: string) => sig.replace(/\*/g, "+").replace(/-/g, "/").replace(/_/g, "=");
   const inflateSig = (sig: string) =>
@@ -415,7 +415,7 @@ describe("UserSig（TLSSigAPI@v2 官方算法）", () => {
       `TLS.time:${FIXED_TIME}\n` +
       `TLS.expire:${EXPIRE}\n`;
     const expectedSig = createHmac("sha256", SECRET).update(content, "utf8").digest("base64");
-    expect(expectedSig).toBe("sl5hKDKyOWFuJWFCUODM6lntLH0SuDmNngTIw/5/oZU="); // Python golden
+    expect(expectedSig).toBe("qVBAw+CBoL5X4vcviiPDANPTzvXoyDlkeLym0Av9VLI="); // Python golden
     expect(doc["TLS.sig"]).toBe(expectedSig);
     // UserSig 字符集：base64 URL 转义后绝不含 + / =
     expect(sig).toMatch(/^[A-Za-z0-9*\-_]+$/);
