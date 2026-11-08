@@ -28,7 +28,7 @@ jobs:
         working-directory: runtime
       - name: Run root-only release recovery tests
         working-directory: runtime
-        run: sudo -E "$(command -v node)" node_modules/vitest/vitest.mjs run scripts/sync-release-artifacts.test.ts api/lib/releaseFileLock.test.ts
+        run: sudo -E "$(command -v node)" node_modules/vitest/vitest.mjs run scripts/sync-release-artifacts.test.ts api/lib/releaseFileLock.test.ts api/lib/releaseFileLock.absolute.test.ts
       - run: npm ci
         working-directory: desktop
       - run: npm test
