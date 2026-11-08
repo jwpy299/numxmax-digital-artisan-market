@@ -1,9 +1,9 @@
 /**
- * Packages（/packages）—— 数字员工订阅包体系页（迭代 28：彭总《数字员工订阅包体系》V1.0 NEBULA-DE-SUB-001 落地重写）。
+ * Packages（/packages）—— 数字员工订阅插件包体系页（迭代 28：彭总《数字员工订阅插件包体系》V1.0 NEBULA-DE-SUB-001 落地重写）。
  *
  * 页面结构（文档章节对位）：
  *   ① 定价体系区（第六章：单部门定价 4 档+多部门折扣表+子包折扣表——采购依据透明面）
- *   ② 13 部门订阅包区（第三章：按部门组卡——复核 Agent 标配标+子包档清单+「订阅 →」跳工作台申请链[?pkg= 归因]）
+ *   ② 13 部门订阅插件包区（第三章：按部门组卡——复核 Agent 标配标+子包档清单+「订阅 →」跳工作台申请链[?pkg= 归因]）
  *   ③ 跨部门协同包区（第四章 5 件——购买模态链）
  *   ④ 企业全域包区（第五章 2 件年费大卡——购买模态链）
  *   ⑤ 交付与激活（第七章 5 步）+售后服务（第八章 4 项）
@@ -55,7 +55,7 @@ interface Pkg {
   posterUrl: string
   features: string[]
   sortOrder: number
-  deptCode: string | null // 部门键（部门级订阅包面——非部门包=null）
+  deptCode: string | null // 部门键（部门级订阅插件包面——非部门包=null）
   packageTier: string | null // 子包级（wb#81 透出：basic/management/strategic/synergy/global——页面分区锚）
   teamSpec: DeptTeamSpec | null // 团队规格（部门包带——主管+专员清单透出面）
 }
@@ -123,7 +123,7 @@ function AdvisorCard({ pkgs, onPick }: { pkgs: Pkg[]; onPick: (p: Pkg) => void }
         <button
           type="submit"
           disabled={busy || need.trim().length < 2 || pkgs.length === 0}
-          title={pkgs.length === 0 ? '订阅包清单加载中——加载完再让导购看' : undefined}
+          title={pkgs.length === 0 ? '订阅插件包清单加载中——加载完再让导购看' : undefined}
           className="rounded-lg bg-forge-amber px-5 py-2.5 text-sm font-bold text-void transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:self-end"
         >
           {busy ? '导购专员上岗中…（数字员工真身——首答约 30 秒）' : '让导购专员看看 →'}
@@ -325,7 +325,7 @@ function PricingTables({ tierPrice, digitalAssetPrice }: { tierPrice: Partial<Re
   )
 }
 
-// ─── 部门订阅包卡（第三章——13 部门组卡：复核 Agent 标配+子包档清单+订阅钮） ────
+// ─── 部门订阅插件包卡（第三章——13 部门组卡：复核 Agent 标配+子包档清单+订阅钮） ────
 
 function DeptGroupCard({ deptCode, subs, onSubscribe }: { deptCode: string; subs: Pkg[]; onSubscribe: () => void }) {
   const deptName = DEPT_NAME[deptCode as PkgDeptKey] ?? deptCode // as 断言+运行时兜（库面键超契约时兜原始键——定义面全键强迫仍在=漏名编译即红）
@@ -337,7 +337,7 @@ function DeptGroupCard({ deptCode, subs, onSubscribe }: { deptCode: string; subs
       <HudCorner />
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="font-display text-lg font-bold text-ink-primary">{deptName}数字员工包</h3>
+          <h3 className="font-display text-lg font-bold text-ink-primary">{deptName}数字员工订阅插件包</h3>
           <Building2 className="h-5 w-5 text-pulse-cyan/60" />
         </div>
         {/* 复核 Agent 标配标（双层架构复核层——文档 2.1） */}
@@ -684,7 +684,7 @@ function OrderSuccess({ order, pkg, onBack }: { order: CreateOrderResult; pkg: P
             onClick={onBack}
             className="text-xs text-ink-faint transition-colors hover:text-pulse-cyan"
           >
-            返回订阅包体系
+            返回订阅插件包体系
           </button>
         </div>
       </div>
@@ -856,7 +856,7 @@ export default function Packages() {
       <div className="text-center">
         <p className="hud-label text-pulse-cyan/80">SUBSCRIPTION MATRIX · V1.0</p>
         <h1 className="mt-3 font-display text-3xl font-bold tracking-[0.02em] text-ink-primary md:text-4xl">
-          数字员工订阅包体系
+          数字员工订阅插件包体系
         </h1>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-ink-secondary">
           按部门订阅 · 双层架构（每部门标配复核 Agent）· 天然协同（跨部门任务自动流转）· 按需组合（单部门起步至全域覆盖）。
@@ -888,11 +888,11 @@ export default function Packages() {
           {/* ① 定价体系区（第六章） */}
           <PricingTables tierPrice={tierPrice} digitalAssetPrice={digitalAssetPrice} />
 
-          {/* ② 13 部门订阅包区（第三章——主调面） */}
+          {/* ② 13 部门订阅插件包区（第三章——主调面） */}
           {deptKeys.length > 0 && (
             <>
               <div className="mt-14">
-                <p className="hud-label text-pulse-cyan/80">DEPT PACKAGES · 13 部门订阅包</p>
+                <p className="hud-label text-pulse-cyan/80">DEPT PACKAGES · 13 部门订阅插件包</p>
                 <p className="mt-1 text-xs text-ink-faint">
                   按部门雇佣整个数字员工团队——复核 Agent 标配随任意子包提供；订阅后自动生成该部门全部岗位 Agent，负责人确认即上岗
                 </p>
