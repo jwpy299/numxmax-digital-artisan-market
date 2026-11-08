@@ -35,8 +35,6 @@ jobs:
         working-directory: desktop
       - run: node runtime/scripts/license-gate.mjs
       - uses: gitleaks/gitleaks-action@v2
-      - uses: anchore/sbom-action@v0
-        with:
-          path: runtime
-          format: cyclonedx-json
-          output-file: SBOM.ci.json
+      - name: Verify committed CycloneDX SBOM offline
+        working-directory: runtime
+        run: node scripts/verify-sbom.mjs
