@@ -152,7 +152,7 @@ export default function HeroSection() {
 
   useGSAP(
     () => {
-      const split = new SplitText('.hero-title-line', { type: 'chars' })
+      const split = new SplitText('.hero-title-line', { type: 'chars', ignore: '.text-brand-gradient' })
       const tl = gsap.timeline({ defaults: { ease: 'power4.out' } })
       tl.from(split.chars, {
         y: 60,
