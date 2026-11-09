@@ -110,6 +110,7 @@ import { reconRouter } from "./routers/recon";
 import { edgeNodeRouter } from "./routers/edgeNode";
 import { paymentChannelRouter } from "./routers/paymentChannel";
 import { agentTrainingReviewRouter, agentTrainingRouter, agentWorkRouter } from "./routers/agentEmployment";
+import { agentRuntimeContainerRouter } from "./routers/agentRuntimeContainer";
 import { agentPluginsRouter } from "./routers/agentPlugins";
 import { agentPluginPaymentsRouter } from "./routers/agentPluginPayments";
 import { wechatPaymentsEnabled } from "./lib/wechatPayV2";
@@ -307,6 +308,7 @@ export const appRouter = createRouter({
   personalAgent: personalAgentRouter,
   agentTraining: agentTrainingRouter,
   agentWork: agentWorkRouter,
+  agentRuntime: agentRuntimeContainerRouter,
   agentPlugins: agentPluginsRouter,
   ...(wechatPaymentsEnabled() ? { agentPluginPayments: agentPluginPaymentsRouter } : {}),
   agentMarketLive: agentMarketLiveRouter,

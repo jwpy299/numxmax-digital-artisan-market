@@ -265,6 +265,7 @@ let DEPT_STATUS = 'loading';
 let CABIN_NAME = '';
 let ME_ORG_ROLE = '';
 let ME_IS_DEPT_HEAD = false;
+let ME_HEAD_CABIN_CODE = '';
 let BOOT_SEQ = 0;
 let CABIN_WORKSPACE_TOKEN = null;
 let SCOPED_ERROR = '';
@@ -306,7 +307,7 @@ function setReviewBusy(i, busy) {
   document.querySelectorAll(`#ri${i} .ri-act button, #ri${i} .ri-act input`).forEach((el) => { el.disabled = busy; });
 }
 function canManageCabin() {
-  return ME_ORG_ROLE === 'admin';
+  return ME_ORG_ROLE === 'admin' || (ME_IS_DEPT_HEAD === true && !!DEPT && DEPT === ME_HEAD_CABIN_CODE);
 }
 function requireAdminAction(action) {
   if (LIVE.mode === 'loading') { alert('身份与数据加载中，请稍后再提交'); return false; }
@@ -315,14 +316,14 @@ function requireAdminAction(action) {
   if (DEPT_STATUS === 'loading') { alert('部门舱切换中，请等待本舱数据读回'); return false; }
   if (DEPT_STATUS === 'unavailable') { alert('部门映射未读回——暂不提交'); return false; }
   if (canManageCabin()) return true;
-  alert(`${action}仅企业负责人可执行；当前席只读，不会生成模拟结果`);
+  alert(`${action}仅企业负责人或本舱舱长可执行；当前席只读，不会生成模拟结果`);
   return false;
 }
 function dispatchNoteText(allowed, sel) {
   if (LIVE.mode === 'loading') return '身份与数据加载中…';
   if (LIVE.mode === 'expired') return '未登录或会话已失效——请返回登录后再提交主管编排';
   if (LIVE.mode === 'demo') return '数据未接通：请待运行时恢复后再提交真实主管编排';
-  if (!allowed) return '当前席只读：主管编排与复核裁决仅企业负责人';
+  if (!allowed) return '当前席只读：主管编排与复核裁决仅企业负责人或本舱舱长';
   if (DEPT_STATUS === 'loading') return '部门舱切换中，请等待本舱数据读回后再提交';
   if (DEPT_STATUS === 'unavailable') return '部门映射未读回，暂不提交';
   if (!sel?.value) return '请选择真实部门舱后再提交主管编排';
@@ -622,6 +623,7 @@ function resetCabinDegraded(reason, sessionExpired = false, error) {
   DEPT_STATUS = 'unavailable';
   ME_ORG_ROLE = '';
   ME_IS_DEPT_HEAD = false;
+  ME_HEAD_CABIN_CODE = '';
   CABIN_NAME = '';
   if (WORKSPACE_DIRECTORY === undefined) failWorkspaceDirectory(error ?? reason);
   paintWorkspaceStrip();
@@ -670,12 +672,14 @@ async function bootCabin() {
     const requestedDept = DEPT;
     const cabins = Array.isArray(cabinMap?.cabins) ? cabinMap.cabins : null;
     if (!rawMe) {
+      ME_HEAD_CABIN_CODE = '';
       DEPT = '';
       DEPT_STATUS = 'unavailable';
       CABIN_NAME = '';
       $('#toWho').innerHTML = '<option value="">身份未读回</option>';
     } else if (cabins) {
       const ownTarget = cabins.find(c => !!me.deptId && (c.departmentId === me.deptId || c.code === me.deptId));
+      ME_HEAD_CABIN_CODE = ownTarget?.code || '';
       const requestedTarget = requestedDept ? cabins.find(c => c.departmentId === requestedDept || c.code === requestedDept) : null;
       const target = requestedDept ? requestedTarget : (ownTarget || (cabins.length === 1 ? cabins[0] : null));
       DEPT = target?.code || '';

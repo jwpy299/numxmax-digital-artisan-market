@@ -1,0 +1,8 @@
+{
+  "schema": "numx.runtime-container.verifier-run.v1",
+  "version": "v2",
+  "createdAt": "2026-11-08T14:46:49.371586+00:00",
+  "command": "bash verifier/v2/run.sh",
+  "exitCode": 0,
+  "log": "verifier/runs/20261108T144525_380208667Z_v2.log"
+}

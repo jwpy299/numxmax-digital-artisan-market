@@ -30,7 +30,7 @@
       const anchor = event.target instanceof frame.contentWindow.Element ? event.target.closest('a[href]') : null;
       if (!anchor) return;
       const url = new URL(anchor.href, frame.contentWindow.location.href);
-      const match = url.pathname.match(/\/(index|cabin|station)\.html$/);
+      const match = url.pathname.match(/\/(index|cabin|station|runtime)\.html$/);
       if (!match || url.origin !== window.location.origin || !frames.has(match[1])) return;
       event.preventDefault();
       setView(match[1], url.search);

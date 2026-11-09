@@ -244,6 +244,10 @@ if (env.isProduction) {
 
 if (testPreview && !viteDevServer) await startHttpServer();
 
+// 多 Agent Runtime 容器：独立编排 worker；默认关闭，迁移完成后才显式开启。
+const { startRuntimeContainerWorker } = await import("./runtimeContainer/service");
+startRuntimeContainerWorker();
+
 // 个人 Agent 隔离训练：仅 AGENT_TRAINING_SWEEP=1 显式启用；先完成 additive DDL，再允许自动结算。
 // 与 env.isProduction 解耦：隔离 staging/dev 显式开启沙箱时也能推进七日生命周期。
 const sweepGate = resolveAgentSweepGate({

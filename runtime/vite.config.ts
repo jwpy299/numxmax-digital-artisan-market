@@ -5,10 +5,15 @@ import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { inspectAttr } from 'plugin-inspect-react-code'
 
+// Desktop Electron uses file://; web builds keep the existing absolute-root behavior.
+const IS_DESKTOP = process.env.VITE_DESKTOP === '1'
+if (!IS_DESKTOP && process.env.VITE_API_BASE) throw new Error('web build 不许设 VITE_API_BASE（桌面专用）')
+
 // https://vite.dev/config/
 export default defineConfig(({ command }) => {
   if (command === "serve") process.env.NEBULA_VITE_DEV_SERVER = "1"
   return {
+  base: IS_DESKTOP ? './' : '/',
   plugins: [
     devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
     inspectAttr(), react()],

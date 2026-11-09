@@ -215,7 +215,7 @@ function loadOrgAssets(orgRoot) {
   };
   add(`${UI_BASE}/ui.js`, 'ui.js', 'text/javascript; charset=utf-8');
   add(`${UI_BASE}/ui.css`, 'ui.css', 'text/css; charset=utf-8');
-  for (const relative of ['index.html', 'cabin.html', 'station.html']) {
+  for (const relative of ['index.html', 'cabin.html', 'station.html', 'runtime.html']) {
     add(`${UI_BASE}/org/${relative}`, `org/${relative}`, HTML_HEADERS['content-type']);
   }
   add(`${UI_BASE}/org/org-boot.js`, 'org/org-boot.js', 'text/javascript; charset=utf-8');
@@ -427,6 +427,7 @@ function registerIndexInjection(ctx, css) {
       <button type="button" data-org-view="index" aria-pressed="true">组织总览</button>
       <button type="button" data-org-view="cabin" aria-pressed="false">部门舱</button>
       <button type="button" data-org-view="station" aria-pressed="false">我的工位</button>
+      <button type="button" data-org-view="runtime" aria-pressed="false">多 Agent 编排</button>
       <button type="button" data-org-fullscreen aria-pressed="false">横屏展开</button>
     </nav>
   </header>
@@ -434,6 +435,7 @@ function registerIndexInjection(ctx, css) {
     <iframe data-org-frame="index" src="${UI_BASE}/org/index.html" title="组织总览" loading="eager"></iframe>
     <iframe data-org-frame="cabin" src="${UI_BASE}/org/cabin.html" title="部门舱" loading="lazy" hidden></iframe>
     <iframe data-org-frame="station" src="${UI_BASE}/org/station.html" title="我的工位" loading="lazy" hidden></iframe>
+    <iframe data-org-frame="runtime" src="${UI_BASE}/org/runtime.html" title="多 Agent 编排" loading="lazy" hidden></iframe>
   </div>
 </section>`;
     table.push(

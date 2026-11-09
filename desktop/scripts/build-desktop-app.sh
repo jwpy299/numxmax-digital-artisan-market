@@ -3,9 +3,9 @@
 # 按需构建仓内前端 → 每壳独立渲染 shell/apiBase preload → 分壳 NSIS → asar 读回 → dl/ 稳定名。
 set -e
 export PATH=/opt/node22/bin:$PATH
-WB=${WB:-/opt/numxmax/wb} # 正式包仅用 master；候选验收显式传入独立工作树，不混用产物
-DT=${DT:-/opt/numxmax/desktop} # 桌面源目录：正式包用 master；候选验收显式传入独立工作树，禁止混壳
-PA=/opt/numxmax/portal-admin
+WB=${WB:-/opt/rebuild/wb} # 正式包仅用 master；候选验收显式传入独立工作树，不混用产物
+DT=${DT:-/opt/rebuild/desktop} # 桌面源目录：正式包用 master；候选验收显式传入独立工作树，禁止混壳
+PA=/opt/rebuild/portal-admin
 OPS_WEB_CUSTOM=${OPS_WEB:+x}
 OPS_WEB=${OPS_WEB:-$PA/dist/public/ops}
 BUILD_STARTED=$(( $(date +%s) - 2 ))
@@ -101,6 +101,11 @@ if [[ "$NEED_WB" == 1 ]]; then
   WB_API_BASE=$(node -p "require('$DT/src/apiAllowlist.cjs').SHELL_API_BASE.personal")
   VITE_DESKTOP=1 VITE_API_BASE="$WB_API_BASE" npm run build > "$RUN_TMP/desk_fe_build.log" 2>&1
   echo '  前端 build OK'
+  if [[ " $SHELL_LIST " == *" org "* ]]; then
+    mkdir -p "$WB/dist/public/org"
+    cp -a "$DT/src/plugins/numx-org/ui/org/." "$WB/dist/public/org/"
+    node -e 'const fs=require("fs"),crypto=require("crypto"),manifest=require(process.env.DT+"/src/plugins/numx-org/ui/ui-manifest.json");for(const name of ["index.html","cabin.html","station.html","runtime.html","org-boot.js"]){const actual=crypto.createHash("sha256").update(fs.readFileSync(process.env.WB+"/dist/public/org/"+name)).digest("hex");if(actual!==manifest.files[name])throw new Error(name+" org UI sha256 mismatch")}'
+  fi
 fi
 
 if [[ "$NEED_OPS" == 1 ]]; then

@@ -182,7 +182,7 @@ export function useWbSession() {
 const wbClient = createTRPCUntypedClient({
   links: [
     httpBatchLink({
-      url: "/api/trpc",
+      url: `${import.meta.env.VITE_API_BASE ?? ""}/api/trpc`,
       // token 只走 body 红线：query 一律 POST（默认 GET 会把含 token 的 input 拼进 URL，
       // 落 nginx/CDN 访问日志）。当前 @trpc/client 11.x 该选项名为 methodOverride
       // （语义即「所有请求无论 query/mutation 一律 POST」）。

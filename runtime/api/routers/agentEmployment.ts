@@ -81,6 +81,23 @@ const REFUND_SETTLEMENT_BATCH_LIMIT = 100;
 function rows<T = Row>(result: unknown): T[] {
   return rawRows(result) as T[];
 }
+
+/**
+ * 只有 submitTask 可解 art_ 委派；其它就业入口统一使用普通 wb 会话，art_ 必然无效。
+ * token 与 claimId 同时匹配，明文不落日志。
+ */
+async function sessionForSubmitTask(token: string, claimId: number): Promise<WbSession> {
+  if (!token.startsWith("art_")) return sessionMe(token);
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const delegation = rows(await getDb().execute(sql`
+    SELECT owner_user_id AS ownerUserId, factory_id AS factoryId FROM st_agent_runtime_delegations
+    WHERE token_hash=${tokenHash} AND claim_id=${claimId} AND scope='submitTask' AND revoked_at IS NULL AND expires_at>NOW() LIMIT 1`))[0];
+  if (!delegation) throw new TRPCError({ code: "UNAUTHORIZED", message: "运行时委派无效、已过期、已撤销或与任务不匹配" });
+  const user = rows(await getDb().execute(sql`SELECT * FROM wb_users WHERE id=${Number(delegation.ownerUserId)} AND factoryId=${Number(delegation.factoryId)} AND disabled=0 LIMIT 1`))[0];
+  const factory = rows(await getDb().execute(sql`SELECT * FROM wb_factories WHERE id=${Number(delegation.factoryId)} LIMIT 1`))[0];
+  if (!user || !factory) throw new TRPCError({ code: "UNAUTHORIZED", message: "运行时委派身份已失效" });
+  return { user, factory } as unknown as WbSession;
+}
 const stringArray = parseJsonArray;
 
 function departmentList(value: unknown): { id: string; name: string }[] {
@@ -818,8 +835,20 @@ export async function runAgentTrainingSweep(): Promise<{ scanned: number; releas
 }
 
 // 所有训练/就业入口共享 schema 就绪闸；未先执行 additive DDL 时统一 fail-closed。
-const agentEmploymentProcedure = publicQuery.use(async ({ next }) => {
+const agentEmploymentProcedure = publicQuery.use(async ({ next, path, input }) => {
   await assertAgentEmploymentSchemaReady(getDb());
+  const candidate = input as { token?: unknown; claimId?: unknown } | undefined;
+  const token = typeof candidate?.token === "string" ? candidate.token : "";
+  if (token.startsWith("art_")) {
+    if (path !== "submitTask" && path !== "agentWork.submitTask") forbidden("运行时委派只能提交指定任务交付");
+    const claimId = Number(candidate?.claimId ?? 0);
+    if (!Number.isInteger(claimId) || claimId <= 0) forbidden("运行时委派任务无效");
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const delegation = rows(await getDb().execute(sql`
+      SELECT id FROM st_agent_runtime_delegations
+      WHERE token_hash=${tokenHash} AND claim_id=${claimId} AND scope='submitTask' AND revoked_at IS NULL AND expires_at>NOW() LIMIT 1`))[0];
+    if (!delegation) forbidden("运行时委派与任务不匹配或已撤销");
+  }
   return next();
 });
 
@@ -2084,7 +2113,7 @@ export const agentWorkRouter = createRouter({
     claimId: z.number().int().positive(),
     deliverable: z.string().trim().min(MIN_DELIVERABLE_LENGTH).max(WORK_DELIVERABLE_MAX_LENGTH),
   })).mutation(async ({ input }) => {
-    const session = await sessionMe(input.token);
+    const session = await sessionForSubmitTask(input.token, input.claimId);
     const db = getDb();
     return db.transaction(async (tx) => {
       const dbtx = tx as unknown as Db;

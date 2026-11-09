@@ -30,6 +30,7 @@ const files = [
   'src/plugins/numx-org/ui/org/index.html',
   'src/plugins/numx-org/ui/org/cabin.html',
   'src/plugins/numx-org/ui/org/station.html',
+  'src/plugins/numx-org/ui/org/runtime.html',
   'src/plugins/numx-org/ui/org/org-boot.js',
   'src/plugins/numx-org/ui/ui-manifest.json',
   'src/org-transport/package.json',

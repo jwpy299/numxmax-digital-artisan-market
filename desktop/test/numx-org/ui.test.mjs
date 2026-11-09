@@ -98,7 +98,7 @@ function postJson(value) {
   return { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) };
 }
 
-test('DSH UI：真实三屏经 Connection 精确路由提供，入口保留三屏独立状态', async () => {
+test('DSH UI：原三屏与第四编排屏经 Connection 精确路由提供，各屏独立状态', async () => {
   const { routes, injections, dispatch, registerUi } = makeContext();
   const dispose = await registerUi();
   try {
@@ -142,6 +142,10 @@ test('DSH UI：真实三屏经 Connection 精确路由提供，入口保留三�
     assert.doesNotMatch(bootBody, /file:.*https:\/\/wb\./);
     const station = await dispatch('/api/numx-org/org/station.html');
     assert.equal(station.status, 200);
+    const runtime = await dispatch('/api/numx-org/org/runtime.html');
+    const runtimeBody = await runtime.text();
+    assert.match(runtimeBody, /多 Agent 自然语言编排/);
+    assert.match(runtimeBody, /agentRuntime.createPlan/);
     const stationBody = await station.text();
     assert.match(stationBody, /submitReview\(index\)|recoverExpiredSession/);
     assert.match(stationBody, /openTasks|stationKey/);
@@ -154,7 +158,8 @@ test('DSH UI：真实三屏经 Connection 精确路由提供，入口保留三�
     injections[0](rows);
     const html = rows.find((row) => row.kind === 'html')?.html || '';
     assert.match(html, /numx-org-runtime/);
-    assert.equal((html.match(/data-org-frame=/g) || []).length, 3);
+    assert.equal((html.match(/data-org-frame=/g) || []).length, 4);
+    assert.match(html, /data-org-frame="runtime"/);
     assert.ok(rows.some((row) => row.kind === 'script-src' && row.src === '/api/numx-org/ui.js'));
   } finally {
     await dispose();

@@ -14,12 +14,14 @@ export interface DshCallResult {
   answer?: string;
   error?: string;
   durationMs?: number;
+  stationKey?: string;
+  modelOverride?: string;
 }
 
 const BUSY_RETRIES = 3;
 const BUSY_WAIT_MS = 15_000;
 
-export async function callDsh(task: string, timeoutSec = 300, factoryId?: number, modelOverride?: string): Promise<DshCallResult> {
+export async function callDsh(task: string, timeoutSec = 300, factoryId?: number, modelOverride?: string, stationKey?: string): Promise<DshCallResult> {
   const token = (process.env.DSH_SERVICE_TOKEN ?? "").trim();
   if (!token) return { ok: false, error: "dsh_not_configured" };
   // M52：DSH 底座并发上限 MAX_CONC=2，429 busy 时排队重试（3×15s），
@@ -29,7 +31,7 @@ export async function callDsh(task: string, timeoutSec = 300, factoryId?: number
       const res = await fetch(`${DSH_RUNTIME_URL}/run`, { // 端点外置（门禁 wb#69 部署面钉——与 stationPool HARNESS_POOL_URL 同律）
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ task, timeoutSec, factoryId, ...(modelOverride ? { modelOverride } : {}) }),
+        body: JSON.stringify({ task, timeoutSec, factoryId, ...(modelOverride ? { modelOverride } : {}), ...(stationKey ? { stationKey } : {}) }),
         signal: AbortSignal.timeout((timeoutSec + 30) * 1000),
       });
       const j = (await res.json()) as { ok?: boolean; answer?: string; error?: string; detail?: string; durationMs?: number };
@@ -38,7 +40,7 @@ export async function callDsh(task: string, timeoutSec = 300, factoryId?: number
         continue;
       }
       if (!res.ok) return { ok: false, error: j.error ?? `http_${res.status}` };
-      return { ok: j.ok === true, answer: j.answer, error: j.error ?? j.detail, durationMs: j.durationMs };
+      return { ok: j.ok === true, answer: j.answer, error: j.error ?? j.detail, durationMs: j.durationMs, ...(stationKey ? { stationKey } : {}), ...(modelOverride ? { modelOverride } : {}) };
     } catch (e) {
       return { ok: false, error: e instanceof Error && e.name === "AbortError" ? "dsh_timeout" : "dsh_network_error" };
     }

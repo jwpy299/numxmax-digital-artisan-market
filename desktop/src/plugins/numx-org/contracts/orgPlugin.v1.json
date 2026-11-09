@@ -66,7 +66,13 @@
       "packages.list",
       "packages.myEntitlement",
       "agentic.authLogin",
-      "orgPlugin.workspaces"
+      "orgPlugin.workspaces",
+      "agentRuntime.runtimes",
+      "agentRuntime.list",
+      "agentRuntime.plan",
+      "agentWork.identity",
+      "agentWork.factory",
+      "agentTraining.mine"
     ],
     "write": [
       "harnessProxy.delegate",
@@ -81,7 +87,14 @@
       "entCabin.create",
       "wbInvites.create",
       "orgPlugin.installTicket",
-      "orgPlugin.installConfirm"
+      "orgPlugin.installConfirm",
+      "agentRuntime.bindIdentity",
+      "agentRuntime.createPlan",
+      "agentRuntime.openCompetition",
+      "agentRuntime.selectCandidate",
+      "agentRuntime.dispatch",
+      "agentRuntime.review",
+      "agentRuntime.cancel"
     ],
     "public": [
       "agentic.authLogin",
@@ -104,7 +117,14 @@
     "entCabin.create",
     "wbInvites.create",
     "orgPlugin.installTicket",
-    "orgPlugin.installConfirm"
+    "orgPlugin.installConfirm",
+    "agentRuntime.bindIdentity",
+    "agentRuntime.createPlan",
+    "agentRuntime.openCompetition",
+    "agentRuntime.selectCandidate",
+    "agentRuntime.dispatch",
+    "agentRuntime.review",
+    "agentRuntime.cancel"
   ],
   "roleCapabilities": {
     "plugin.install": [

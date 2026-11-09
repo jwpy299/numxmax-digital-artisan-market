@@ -9,6 +9,7 @@ import Market from '@/pages/Market'
 import AgentDetail from '@/pages/AgentDetail'
 import Workbench from '@/pages/Workbench'
 import AgentEmployment from '@/pages/AgentEmployment'
+import AgentRuntimeContainer from '@/pages/AgentRuntimeContainer'
 import AgentTrainingReview from '@/pages/admin/AgentTrainingReview'
 import Enterprise from '@/pages/Enterprise'
 import Masters from '@/pages/Masters'
@@ -202,6 +203,7 @@ export default function App() {
         <Route path="market/agent/:id" element={<AgentDetail />} />
         <Route path="workbench" element={<Workbench />} />
         <Route path={ROUTE_AGENT_EMPLOYMENT_SEGMENT} element={<AgentEmployment />} />
+        <Route path="runtime" element={<AgentRuntimeContainer />} />
         <Route path="enterprise" element={<Enterprise />} />
         <Route path="masters" element={<Masters />} />
         <Route path="masters/:id" element={<MasterDetail />} />
