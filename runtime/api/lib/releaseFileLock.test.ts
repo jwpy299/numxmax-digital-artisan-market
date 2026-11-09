@@ -20,7 +20,7 @@ describe.skipIf(!HAS_ROOT)('发布文件锁（root-only；公开 CI 另有特权
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'release-file-lock-'))
     roots.push(root)
     vi.stubEnv('RELEASE_LOCK_FILE', path.join(root, 'restore.lock'))
-    vi.stubEnv('RELEASE_FILE_LOCK_TIMEOUT_MS', '200')
+    vi.stubEnv('RELEASE_FILE_LOCK_TIMEOUT_MS', '2000')
     let release!: () => void
     const gate = new Promise<void>((resolve) => { release = resolve })
     const first = withReleaseFileLock(() => gate)
