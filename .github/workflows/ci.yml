@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+env:
+  GITLEAKS_CONFIG: .gitleaks.toml
+
 jobs:
   verify:
     runs-on: ubuntu-latest
