@@ -1,0 +1,25 @@
+{
+  "schema": "numx.verifier.run.v1",
+  "verifierVersion": "v3",
+  "timestamp": "2026-11-09T08:02:59.031794+00:00",
+  "command": "verifier/v3/verify-oss-package.py",
+  "criteria": {
+    "source_sha_matches": {
+      "pass": true
+    },
+    "frontend_assets_excluded": {
+      "pass": true
+    },
+    "gsap_paths_zero": {
+      "pass": true
+    },
+    "org_entries_complete": {
+      "pass": true
+    }
+  },
+  "sourceSha": "b94dcb634a91e1cf2149d4f750198adc94136696",
+  "ossPackageEligible": true,
+  "readyForProduction": false,
+  "note": "只验证组织安装包 OSS 资格，不替代 Authenticode、RFC3161、可信发布者或 Windows VM 生命周期证据。",
+  "exitCode": 0
+}
