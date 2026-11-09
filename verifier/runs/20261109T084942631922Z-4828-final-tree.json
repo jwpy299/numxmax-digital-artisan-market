@@ -1,0 +1,30 @@
+{
+  "schema": "numx.verifier.run.v1",
+  "verifierVersion": "v4",
+  "timestamp": "2026-11-09T08:49:42.631922+00:00",
+  "command": "verifier/v4/verify-final-tree.py",
+  "criteria": {
+    "local_tree_matches_final_build": {
+      "pass": true
+    },
+    "remote_final_sha_recorded": {
+      "pass": true
+    },
+    "frontend_assets_excluded": {
+      "pass": true
+    },
+    "gsap_paths_zero": {
+      "pass": true
+    },
+    "org_entries_complete": {
+      "pass": true
+    }
+  },
+  "localHead": "8e72da6c7e9590a456bbdc3aca3af5808be5c650",
+  "localTree": "c8952b8762a5b62beb849dbccc1bbb60ade930ed",
+  "remoteFinalSourceSha": "164c20788849995b0ca9aa01b8aa0dedd3171cff",
+  "ossPackageEligible": true,
+  "readyForProduction": false,
+  "note": "验证最终公开提交与本地构建 tree 映射及 OSS 资格，不替代 Authenticode、RFC3161 或 Windows VM 证据。",
+  "exitCode": 0
+}

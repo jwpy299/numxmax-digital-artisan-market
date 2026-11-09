@@ -1,0 +1,120 @@
+{
+  "schema": "numx.verifier.run.v1",
+  "verifierVersion": "v1",
+  "timestamp": "2026-11-09T11:29:46.866515+00:00",
+  "command": "verifier/v1/verify.py",
+  "criteria": {
+    "app_signed_package": {
+      "pass": true,
+      "actual": {
+        "sha256": "7f493e3ceaa9c88f1e131676486ec7d3591685b77884c66bb3e2b83c40b9e5b8",
+        "certificateSha256": "4bc0cc568ce7c85b181cedf18a074f95d02616c455b3d8e1afd80ce4b537dd05",
+        "versionName": "2.9.66",
+        "versionCode": 20966
+      }
+    },
+    "arp_allowlist": {
+      "pass": true,
+      "actual": {
+        "enabled": [
+          "dsh",
+          "kimi",
+          "workbuddy"
+        ],
+        "hardClosed": [
+          "glm",
+          "qwen"
+        ]
+      }
+    },
+    "canonical_competition_event_review_wage_regression": {
+      "pass": true,
+      "actual": {
+        "agentEmployment": 14,
+        "agentRuntimeContainer": 2,
+        "separateFreshDatabases": true,
+        "canonicalTouched": false
+      }
+    },
+    "windows_authenticode": {
+      "pass": false,
+      "actual": false
+    },
+    "windows_rfc3161": {
+      "pass": false,
+      "actual": false
+    },
+    "windows_trusted_publisher": {
+      "pass": false,
+      "actual": false
+    },
+    "windows_vm_lifecycle": {
+      "pass": false,
+      "actual": false
+    },
+    "public_candidate_pushed": {
+      "pass": true,
+      "actual": false
+    },
+    "signpath_submitted": {
+      "pass": true,
+      "actual": true
+    },
+    "signpath_approved": {
+      "pass": false,
+      "actual": false
+    },
+    "signpath_token_configured": {
+      "pass": false,
+      "actual": false
+    },
+    "kimi_actual_agent": {
+      "pass": false,
+      "actual": {
+        "oauthComplete": true,
+        "provider": "kimi-coding",
+        "model": "k3",
+        "ok": false,
+        "upstreamStatus": 403,
+        "errorType": "permission_error",
+        "errorSummary": "当前订阅没有 Kimi Code 使用权限，需要升级套餐。",
+        "agentSessionEvidence": true,
+        "evidence": "Kimi-OAuth-Agent验收.json"
+      }
+    },
+    "workbuddy_agent_service": {
+      "pass": true,
+      "actual": {
+        "adapterEnabled": true,
+        "configured": true,
+        "ready": true,
+        "service": "workbuddy-agent-bridge",
+        "url": "http://127.0.0.1:18797",
+        "systemdActive": true,
+        "systemdEnabled": true,
+        "actualAdapterProbe": true,
+        "actualCancelProbe": true,
+        "modelApiSubstitute": false,
+        "evidence": [
+          "WorkBuddy-ARP适配器验收.json",
+          "WorkBuddy-ARP撤销验收.json"
+        ]
+      }
+    },
+    "no_premature_production_launch": {
+      "pass": true,
+      "actual": false
+    }
+  },
+  "blocking": [
+    "windows_authenticode",
+    "windows_rfc3161",
+    "windows_trusted_publisher",
+    "windows_vm_lifecycle",
+    "signpath_approved",
+    "signpath_token_configured",
+    "kimi_actual_agent"
+  ],
+  "readyForProduction": false,
+  "exitCode": 2
+}

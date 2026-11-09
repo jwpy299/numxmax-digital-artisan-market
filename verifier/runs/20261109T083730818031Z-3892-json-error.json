@@ -1,0 +1,10 @@
+{
+  "schema": "numx.verifier.run.v1",
+  "verifierVersion": "v1",
+  "timestamp": "2026-11-09T08:37:30.818031+00:00",
+  "command": "python3 verifier/v1/verify.py",
+  "criteria": {},
+  "error": "JSONDecodeError while reading NumXMax-EXE签名现状.json during concurrent update",
+  "readyForProduction": false,
+  "exitCode": 1
+}

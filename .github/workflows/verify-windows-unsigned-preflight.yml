@@ -1,0 +1,122 @@
+name: verify-windows-unsigned-preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: '最终 main commit SHA，构建与预验绑定此 SHA'
+        required: true
+        default: '08dbc9bbe21a94eeae3d8e926a3f1242249bd6c5'
+        type: string
+      base_version:
+        required: true
+        default: '1.0.1'
+        type: string
+      upgrade_version:
+        description: '仅用于安装器升级/回滚机制预验；不是应用功能迁移版本'
+        required: true
+        default: '1.0.2'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned-installers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+      - name: Bind final source and versions
+        run: |
+          set -euo pipefail
+          test "${{ inputs.source_sha }}" = "$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "${{ inputs.source_sha }}" origin/main
+          test "${{ inputs.base_version }}" = "$(node -p "require('./desktop/package.json').version")"
+          test "${{ inputs.base_version }}" != "${{ inputs.upgrade_version }}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            runtime/package-lock.json
+            desktop/package-lock.json
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: npm ci
+        working-directory: runtime
+      - run: npm ci
+        working-directory: desktop
+      - name: Build base unsigned installer
+        env:
+          WB: ${{ github.workspace }}/runtime
+          DT: ${{ github.workspace }}/desktop
+          SHELL_LIST: org
+        run: |
+          set -euo pipefail
+          bash desktop/scripts/build-desktop-app.sh
+          mkdir -p preflight
+          cp desktop/dl/numx-org-runtime-setup.exe preflight/base.exe
+      - name: Build upgrade unsigned installer with package version override
+        env:
+          WB: ${{ github.workspace }}/runtime
+          DT: ${{ github.workspace }}/desktop
+          SHELL_LIST: org
+        run: |
+          set -euo pipefail
+          cd desktop
+          npm version "${{ inputs.upgrade_version }}" --no-git-tag-version
+          cd ..
+          bash desktop/scripts/build-desktop-app.sh
+          cp desktop/dl/numx-org-runtime-setup.exe preflight/upgrade.exe
+      - name: Record unsigned provenance
+        run: |
+          set -euo pipefail
+          {
+            echo "source_sha=${{ inputs.source_sha }}"
+            echo "workflow_run_id=${{ github.run_id }}"
+            echo "base_version=${{ inputs.base_version }}"
+            echo "upgrade_version=${{ inputs.upgrade_version }}"
+            echo "base_sha256=$(sha256sum preflight/base.exe | cut -d' ' -f1)"
+            echo "upgrade_sha256=$(sha256sum preflight/upgrade.exe | cut -d' ' -f1)"
+            echo "note=unsigned preflight only; upgrade uses same source tree with package version override, not application feature migration"
+          } > preflight/provenance.env
+          cat preflight/provenance.env
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned-preflight-${{ inputs.source_sha }}
+          path: preflight/
+          if-no-files-found: error
+
+  verify-on-fresh-windows-vm:
+    needs: build-unsigned-installers
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-unsigned-preflight-${{ inputs.source_sha }}
+          path: preflight
+      - name: Install start upgrade rollback and uninstall (unsigned preflight)
+        shell: pwsh
+        run: |
+          & desktop/scripts/verify-windows-lifecycle.ps1 `
+            -BaseInstaller "$PWD/preflight/base.exe" `
+            -UpgradeInstaller "$PWD/preflight/upgrade.exe" `
+            -BaseVersion '${{ inputs.base_version }}' `
+            -UpgradeVersion '${{ inputs.upgrade_version }}' `
+            -EvidenceDirectory "$PWD/preflight-evidence" `
+            -ValidationMode 'unsigned-preflight'
+      - name: Upload real Windows VM preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned-preflight-evidence-${{ inputs.source_sha }}
+          path: preflight-evidence/
+          if-no-files-found: error

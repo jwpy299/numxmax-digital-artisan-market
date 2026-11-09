@@ -1,0 +1,24 @@
+{
+  "schema": "numx.verifier.run.v1",
+  "verifierVersion": "v5",
+  "timestamp": "2026-11-09T10:49:19.298687+00:00",
+  "command": "verifier/v5/verify-dsh-startup.py",
+  "criteria": {
+    "isolated_start_passed": {
+      "pass": true
+    },
+    "http_route_verified": {
+      "pass": true
+    },
+    "production_not_restarted": {
+      "pass": true
+    },
+    "canonical_untouched": {
+      "pass": true
+    }
+  },
+  "dshStartupRecovered": true,
+  "readyForProduction": false,
+  "note": "仅验证 DSH 磁盘启动依赖恢复和隔离 HTTP 路由，未调用模型，不等于生产重启或 Agent 上游验收。",
+  "exitCode": 0
+}

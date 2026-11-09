@@ -1,0 +1,27 @@
+{
+  "schema": "numx.verifier.run.v1",
+  "verifierVersion": "v6",
+  "timestamp": "2026-11-09T11:29:30.763569+00:00",
+  "command": "verifier/v6/verify-workbuddy-lifecycle.py",
+  "criteria": {
+    "adapter_delivered": {
+      "pass": true
+    },
+    "result_hash_matches": {
+      "pass": true
+    },
+    "cancelled": {
+      "pass": true
+    },
+    "no_late_delivery": {
+      "pass": true
+    },
+    "cancel_idempotent": {
+      "pass": true
+    }
+  },
+  "workbuddyLifecyclePassed": true,
+  "readyForProduction": false,
+  "note": "验证真实 workbuddy Ticket／事件／交付／撤销，不把 executed/submitted 当 accepted，不替代独立验收和原工资链。",
+  "exitCode": 0
+}

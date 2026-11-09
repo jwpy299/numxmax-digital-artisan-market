@@ -1,0 +1,21 @@
+{
+  "schema": "numx.verifier.run.v1",
+  "verifierVersion": "v2",
+  "timestamp": "2026-11-09T13:56:39.856695+00:00",
+  "command": [
+    "/home/kimi/.dotnet/tools/pwsh",
+    "-NoLogo",
+    "-NoProfile",
+    "-Command",
+    "$tokens=$null;$errors=$null;[System.Management.Automation.Language.Parser]::ParseFile('/mnt/agents/output/worktrees/numxmax-signing/desktop/scripts/verify-windows-lifecycle.ps1',[ref]$tokens,[ref]$errors)|Out-Null;if($errors.Count -gt 0){$errors|ForEach-Object{$_.Message};exit 1};Write-Output 'POWERSHELL_PARSE_OK'"
+  ],
+  "criteria": {
+    "powershell_lifecycle_script_parse": {
+      "pass": true,
+      "actual": "POWERSHELL_PARSE_OK"
+    }
+  },
+  "readyForProduction": false,
+  "note": "仅证明 PowerShell 语法可解析，不是 Windows VM 生命周期实测。",
+  "exitCode": 0
+}

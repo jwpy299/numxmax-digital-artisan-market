@@ -3,7 +3,8 @@ param(
   [Parameter(Mandatory = $true)][string]$UpgradeInstaller,
   [Parameter(Mandatory = $true)][string]$BaseVersion,
   [Parameter(Mandatory = $true)][string]$UpgradeVersion,
-  [Parameter(Mandatory = $true)][string]$EvidenceDirectory
+  [Parameter(Mandatory = $true)][string]$EvidenceDirectory,
+  [ValidateSet('signed-production', 'unsigned-preflight')][string]$ValidationMode = 'signed-production'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,6 +20,9 @@ function Add-Evidence([string]$stage, [hashtable]$data) {
 
 function Assert-SignedInstaller([string]$path) {
   $file = Get-Item $path
+  if ($ValidationMode -eq 'unsigned-preflight') {
+    return [ordered]@{ path = $file.FullName; sha256 = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant(); authenticode = 'unsigned-preflight'; note = '未签名预验，不是生产可信签名证据。' }
+  }
   $signature = Get-AuthenticodeSignature $file.FullName
   if ($signature.Status -ne 'Valid') { throw "Authenticode invalid for $($file.Name): $($signature.Status)" }
   if (-not $signature.SignerCertificate -or $signature.SignerCertificate.Subject -notmatch 'SignPath Foundation') { throw "Trusted publisher missing for $($file.Name)" }
@@ -117,7 +121,7 @@ try {
   if (Get-NumxInstall) { throw 'NumX Max is already installed; use a fresh Windows VM and do not remove an existing user installation.' }
   $base = Assert-SignedInstaller $BaseInstaller
   $upgrade = Assert-SignedInstaller $UpgradeInstaller
-  Add-Evidence 'precondition' @{ imageOS = $env:ImageOS; imageVersion = $env:ImageVersion; base = $base; upgrade = $upgrade; vmType = 'fresh GitHub-hosted Windows VM; not a bare-metal or long-lived user machine' }
+  Add-Evidence 'precondition' @{ imageOS = $env:ImageOS; imageVersion = $env:ImageVersion; base = $base; upgrade = $upgrade; validationMode = $ValidationMode; vmType = 'fresh GitHub-hosted Windows VM; not a bare-metal or long-lived user machine' }
   Invoke-Installer $base.path 'base'
   Assert-InstalledVersion $BaseVersion 'install-base'
   Invoke-StartSmoke 'start-base'
