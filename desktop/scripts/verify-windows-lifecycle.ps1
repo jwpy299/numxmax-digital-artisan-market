@@ -46,9 +46,22 @@ function Get-NumxInstall {
     'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
   )
   $entry = Get-ItemProperty $roots -ErrorAction SilentlyContinue |
-    Where-Object { $_.DisplayName -eq 'NumX Max' } |
+    Where-Object { $_.DisplayName -like 'NumX Max*' } |
     Select-Object -First 1
-  if (-not $entry) { return $null }
+  if (-not $entry) {
+    $candidates = @(
+      (Join-Path $env:LOCALAPPDATA 'Programs\NumX Max'),
+      (Join-Path $env:ProgramFiles 'NumX Max')
+    )
+    if (${env:ProgramFiles(x86)}) { $candidates += (Join-Path ${env:ProgramFiles(x86)} 'NumX Max') }
+    foreach ($directory in $candidates) {
+      if (-not $directory) { continue }
+      $exe = Join-Path $directory 'NumX Max.exe'
+      $uninstallExe = Join-Path $directory 'Uninstall NumX Max.exe'
+      if (Test-Path $exe) { return [ordered]@{ entry = $null; directory = $directory; exe = $exe; uninstallExe = $uninstallExe } }
+    }
+    return $null
+  }
   $directory = [string]$entry.InstallLocation
   if (-not $directory -and $entry.UninstallString) {
     $uninstall = [string]$entry.UninstallString
