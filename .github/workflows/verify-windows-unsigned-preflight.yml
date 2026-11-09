@@ -44,7 +44,8 @@ jobs:
           cache-dependency-path: |
             runtime/package-lock.json
             desktop/package-lock.json
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg wine
+      - run: wine --version
       - run: npm ci
         working-directory: runtime
       - run: npm ci

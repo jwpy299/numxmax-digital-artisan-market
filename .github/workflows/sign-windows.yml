@@ -43,7 +43,8 @@ jobs:
             runtime/package-lock.json
             desktop/package-lock.json
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg wine
+      - run: wine --version
       - run: npm ci
         working-directory: runtime
       - run: npm run check
