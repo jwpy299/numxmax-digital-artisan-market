@@ -1,0 +1,21 @@
+[Unit]
+Description=Workbuddy Agent Runtime Bridge (ARP v1)
+After=network.target dsh-sandbox-runtime.service
+Requires=dsh-sandbox-runtime.service
+
+[Service]
+Type=simple
+EnvironmentFile=/opt/rebuild/workbuddy-agent-bridge.env
+ExecStart=/opt/node22/bin/node /opt/rebuild/workbuddy-agent-bridge.mjs
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/rebuild/workbuddy-agent-bridge
+StandardOutput=append:/opt/rebuild/workbuddy-agent-bridge.log
+StandardError=append:/opt/rebuild/workbuddy-agent-bridge.log
+
+[Install]
+WantedBy=multi-user.target

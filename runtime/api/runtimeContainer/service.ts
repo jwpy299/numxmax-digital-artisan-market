@@ -9,7 +9,7 @@ import { agentWorkRouter } from '../routers/agentEmployment'
 import { AGENT_RUNTIME_CONTAINER_CONTRACT, AGENT_RUNTIME_IDS, type AgentRuntimeId, type AgentRuntimePreference, type AgentRuntimeTaskInput } from '../../contracts/agentRuntimeContainer'
 import { planNaturalLanguage } from './planner'
 import { runtimeReady, runtimeRegistry } from './registry'
-import { executeRuntimeTask, type RuntimeExecutor } from './adapters'
+import { cancelWorkbuddyAgentTask, executeRuntimeTask, type RuntimeExecutor } from './adapters'
 import { assertRuntimeDelegationConfigured, issueSubmitDelegation, readSubmitDelegation, revokeSubmitDelegation } from './delegation'
 
 const work = agentWorkRouter.createCaller({ clientIp: '127.0.0.1' } as never)
@@ -419,6 +419,10 @@ export async function cancelRuntimePlan(token: string, planId: number, reason: s
   if (['completed', 'cancelled'].includes(String(plan.status))) throw new TRPCError({ code: 'CONFLICT', message: '已完成或已撤销计划不能重复撤销' })
   const roles = rows(await db().execute(sql`SELECT * FROM st_agent_runtime_roles WHERE plan_id=${planId} AND status NOT IN ('accepted','cancelled') ORDER BY id ASC`))
   if (roles.some((role) => String(role.status) === 'awaiting_review')) throw new TRPCError({ code: 'CONFLICT', message: '存在待验收交付，请先独立验收或驳回，不能直接撤销抹掉交付事实' })
+  for (const role of roles.filter((item) => String(item.assigned_runtime) === 'workbuddy')) {
+    const cancelled = await cancelWorkbuddyAgentTask(String(role.role_no))
+    if (!cancelled) throw new TRPCError({ code: 'CONFLICT', message: 'workbuddy Agent 撤销失败，计划未撤销；请检查桥接服务后重试' })
+  }
   await db().transaction(async (tx) => {
     await tx.execute(sql`UPDATE st_agent_runtime_outbox SET status='cancelled', last_error='plan_cancelled', processed_at=NOW(), lease_owner=NULL, lease_token=NULL, lease_expires_at=NULL WHERE plan_id=${planId} AND status IN ('pending','claimed')`)
     await tx.execute(sql`UPDATE st_agent_runtime_delegations d JOIN st_agent_runtime_roles r ON r.id=d.role_id SET d.revoked_at=NOW() WHERE r.plan_id=${planId} AND d.revoked_at IS NULL`)

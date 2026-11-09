@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-const { callDshMock } = vi.hoisted(() => ({ callDshMock: vi.fn() }))
+import { createHash } from 'node:crypto'
+const { callDshMock, fetchMock } = vi.hoisted(() => ({ callDshMock: vi.fn(), fetchMock: vi.fn() }))
 vi.mock('../routers/dshClient', () => ({ callDsh: callDshMock }))
-import { executeRuntimeTask } from './adapters'
+import { cancelWorkbuddyAgentTask, executeRuntimeTask } from './adapters'
 import { agentModelProfile, agentStationKey, runtimeRegistry } from './registry'
 import { AGENT_RUNTIME_PLUGIN_PROTOCOL } from '../../contracts/agentRuntimePlugin'
 
@@ -9,6 +10,8 @@ const task = { taskNo: 'RP_TEST_R1', role: '巡检岗', title: '巡检', brief: 
 describe('ARP：真实 Agent 运行时适配', () => {
   beforeEach(() => {
     callDshMock.mockReset()
+    fetchMock.mockReset()
+    globalThis.fetch = fetchMock as never
     callDshMock.mockResolvedValue({ ok: true, answer: '真实 Agent 交付', durationMs: 12 })
     process.env.DSH_SERVICE_TOKEN = 'test-only-agent-token-000000'
     // 故意保留旧环境开关，验证它不能把 GLM／千问重新打开，也不能关掉 Kimi。
@@ -43,6 +46,34 @@ describe('ARP：真实 Agent 运行时适配', () => {
     const result = await executeRuntimeTask('workbuddy', task)
     expect(result).toMatchObject({ ok: false, errorCode: 'agent_runtime_not_configured' })
     expect(callDshMock).not.toHaveBeenCalled()
+  })
+  it('workbuddy 必须完成 Ticket／事件／交付协议后才算成功', async () => {
+    process.env.WORKBUDDY_RUNTIME_URL = 'http://127.0.0.1:18797'
+    process.env.WORKBUDDY_API_KEY = 'test-workbuddy-token-000000'
+    const content = 'workbuddy 真实交付'
+    const resultSha256 = createHash('sha256').update(content).digest('hex')
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/health')) return new Response(JSON.stringify({ ok: true, agentNotModel: true }))
+      if (url.endsWith('/run')) return new Response(JSON.stringify({ ok: true, answer: content, ticketId: 'wb-test-1', sessionId: 'wb-session-1', resultSha256, eventsUrl: '/events?ticketId=wb-test-1', resultUrl: '/result?ticketId=wb-test-1', cancelUrl: '/cancel' }))
+      if (url.includes('/events?')) return new Response(JSON.stringify({ ok: true, events: [{ type: 'runtime.completed' }] }))
+      if (url.includes('/result?')) return new Response(JSON.stringify({ ok: true, status: 'delivered', answer: content, resultSha256 }))
+      if (url.endsWith('/cancel')) return new Response(JSON.stringify({ ok: true, cancelled: true }))
+      throw new Error(`unexpected url ${url}`)
+    })
+    const result = await executeRuntimeTask('workbuddy', task)
+    expect(result).toMatchObject({ ok: true, provider: 'workbuddy-agent', resultSha256, agentSession: { stationKey: 'wb-session-1', ticketId: 'wb-test-1' } })
+    await expect(cancelWorkbuddyAgentTask('wb-session-1')).resolves.toBe(true)
+  })
+  it('workbuddy 缺 Ticket 或交付证据时 fail-closed，不把 /run 答案当完成', async () => {
+    process.env.WORKBUDDY_RUNTIME_URL = 'http://127.0.0.1:18797'
+    process.env.WORKBUDDY_API_KEY = 'test-workbuddy-token-000000'
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/health')) return new Response(JSON.stringify({ ok: true, agentNotModel: true }))
+      if (url.endsWith('/run')) return new Response(JSON.stringify({ ok: true, answer: '只有答案没有 Ticket' }))
+      throw new Error(`unexpected url ${url}`)
+    })
+    const result = await executeRuntimeTask('workbuddy', task)
+    expect(result).toMatchObject({ ok: false, errorCode: 'agent_protocol_violation' })
   })
   it('协议明确 Agent 不是 Chat Completion，且不改变既有插件包', () => {
     expect(AGENT_RUNTIME_PLUGIN_PROTOCOL.agentNotModel).toBe(true)
