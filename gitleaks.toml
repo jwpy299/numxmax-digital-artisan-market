@@ -1,0 +1,6 @@
+[allowlist]
+description = "Deterministic test fixtures and official demo vectors; no production secrets"
+paths = [
+  '''runtime/api/wbCalls.test.ts''',
+  '''runtime/db/sync-nb-auth.mts''',
+]
