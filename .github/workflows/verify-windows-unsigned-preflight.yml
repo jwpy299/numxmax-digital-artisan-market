@@ -59,6 +59,12 @@ jobs:
           bash desktop/scripts/build-desktop-app.sh
           mkdir -p preflight
           cp desktop/dl/numx-org-runtime-setup.exe preflight/base.exe
+      - name: Dump failed base desktop packaging log
+        if: failure()
+        run: |
+          for file in /tmp/numx-desktop-build.*/desk_pack_org.log; do
+            if [ -f "$file" ]; then cat "$file"; fi
+          done
       - name: Build upgrade unsigned installer with package version override
         env:
           WB: ${{ github.workspace }}/runtime
@@ -71,6 +77,12 @@ jobs:
           cd ..
           bash desktop/scripts/build-desktop-app.sh
           cp desktop/dl/numx-org-runtime-setup.exe preflight/upgrade.exe
+      - name: Dump failed upgrade desktop packaging log
+        if: failure()
+        run: |
+          for file in /tmp/numx-desktop-build.*/desk_pack_org.log; do
+            if [ -f "$file" ]; then cat "$file"; fi
+          done
       - name: Record unsigned provenance
         run: |
           set -euo pipefail
