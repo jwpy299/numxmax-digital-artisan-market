@@ -1,0 +1,166 @@
+name: sign-windows-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: '最终 main commit SHA（40 位）；签批与制品必须绑定此 SHA'
+        required: true
+        type: string
+      version:
+        description: 'desktop/package.json 版本，例如 1.0.1'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+      source-sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+      - id: source
+        run: |
+          set -euo pipefail
+          test "${{ inputs.source_sha }}" = "$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "${{ inputs.source_sha }}" origin/main
+          test "${{ inputs.version }}" = "$(node -p "require('./desktop/package.json').version")"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            runtime/package-lock.json
+            desktop/package-lock.json
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: npm ci
+        working-directory: runtime
+      - run: npm run check
+        working-directory: runtime
+      - run: npm test
+        working-directory: runtime
+      - run: npm ci
+        working-directory: desktop
+      - name: Build org NSIS installer from final source SHA
+        env:
+          WB: ${{ github.workspace }}/runtime
+          DT: ${{ github.workspace }}/desktop
+          SHELL_LIST: org
+        run: bash desktop/scripts/build-desktop-app.sh
+      - name: Freeze unsigned artifact and provenance
+        run: |
+          set -euo pipefail
+          mkdir -p release-unsigned
+          cp desktop/dl/numx-org-runtime-setup.exe release-unsigned/numx-org-runtime-setup.exe
+          {
+            echo "source_sha=${{ inputs.source_sha }}"
+            echo "workflow_run_id=${{ github.run_id }}"
+            echo "workflow_run_attempt=${{ github.run_attempt }}"
+            echo "unsigned_sha256=$(sha256sum release-unsigned/numx-org-runtime-setup.exe | cut -d' ' -f1)"
+          } > release-unsigned/provenance.env
+          cat release-unsigned/provenance.env
+      - id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: numx-org-windows-unsigned-${{ inputs.source_sha }}
+          path: release-unsigned/
+          if-no-files-found: error
+
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production-signing
+    steps:
+      - name: Check approved signing configuration
+        env:
+          ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$ORGANIZATION_ID" && test -n "$PROJECT_SLUG" && test -n "$POLICY_SLUG" && test -n "$API_TOKEN"
+      - id: sign
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: numx-org-windows
+          github-artifact-id: ${{ needs.build.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: release-signed
+          parameters: |
+            version: ${{ toJSON(inputs.version) }}
+      - name: Freeze signed artifact and signing evidence
+        run: |
+          set -euo pipefail
+          test -s release-signed/numx-org-runtime-setup.exe
+          {
+            echo "source_sha=${{ needs.build.outputs.source-sha }}"
+            echo "signing_request_id=${{ steps.sign.outputs.signing-request-id }}"
+            echo "signing_request_web_url=${{ steps.sign.outputs.signing-request-web-url }}"
+            echo "signed_sha256=$(sha256sum release-signed/numx-org-runtime-setup.exe | cut -d' ' -f1)"
+          } > release-signed/signing-evidence.env
+          cat release-signed/signing-evidence.env
+      - uses: actions/upload-artifact@v4
+        with:
+          name: numx-org-windows-signed-${{ needs.build.outputs.source-sha }}
+          path: release-signed/
+          if-no-files-found: error
+
+  verify-on-fresh-windows-vm:
+    needs: sign
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: numx-org-windows-signed-${{ inputs.source_sha }}
+          path: release-signed
+      - name: Verify trusted Authenticode chain and RFC3161 timestamp
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $file = Get-Item "$PWD/release-signed/numx-org-runtime-setup.exe"
+          $signature = Get-AuthenticodeSignature $file.FullName
+          if ($signature.Status -ne 'Valid') { throw "Authenticode invalid: $($signature.Status) $($signature.StatusMessage)" }
+          if (-not $signature.SignerCertificate -or $signature.SignerCertificate.Subject -notmatch 'SignPath Foundation') { throw 'Trusted SignPath Foundation publisher missing' }
+          if (-not $signature.TimeStamperCertificate) { throw 'Timestamp certificate missing' }
+          $all = (& signtool verify /all /pa $file.FullName 2>&1 | Out-String)
+          $verbose = (& signtool verify /pa /v $file.FullName 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed: $verbose" }
+          if ($all -notmatch 'RFC3161') { throw "RFC3161 timestamp missing: $all" }
+          $evidence = [ordered]@{
+            source_sha = '${{ inputs.source_sha }}'
+            runner_image_os = $env:ImageOS
+            runner_image_version = $env:ImageVersion
+            file_sha256 = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            authenticode_status = [string]$signature.Status
+            signer_subject = $signature.SignerCertificate.Subject
+            signer_thumbprint = $signature.SignerCertificate.Thumbprint
+            timestamp_subject = $signature.TimeStamperCertificate.Subject
+            signtool_all = $all
+            note = 'Fresh GitHub-hosted Windows VM signature verification only; install/start/uninstall/upgrade/rollback evidence is a separate gate.'
+          }
+          $evidence | ConvertTo-Json -Depth 4 | Set-Content "$PWD/release-signed/windows-signature-evidence.json" -Encoding utf8
+          $evidence | ConvertTo-Json -Depth 4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: numx-org-windows-signature-evidence-${{ inputs.source_sha }}
+          path: release-signed/
+          if-no-files-found: error

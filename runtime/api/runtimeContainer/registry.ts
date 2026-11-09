@@ -19,9 +19,14 @@ export function agentModelProfile(runtime: AgentRuntimeId): string | null {
   return null
 }
 export function agentStationKey(taskNo: string): string { return `rt-${createHash('sha256').update(taskNo).digest('hex').slice(0, 32)}` }
+export const ARP_ENABLED_RUNTIME_IDS = ['dsh', 'kimi', 'workbuddy'] as const
+export function agentRuntimeAdapterEnabled(runtime: AgentRuntimeId): boolean {
+  return (ARP_ENABLED_RUNTIME_IDS as readonly AgentRuntimeId[]).includes(runtime)
+}
 function agentProfileEnabled(runtime: AgentRuntimeId): boolean {
-  if (runtime === 'dsh' || runtime === 'workbuddy') return true
-  return nonEmpty(process.env[`AGENT_RUNTIME_${runtime.toUpperCase()}_ENABLED`]) === '1'
+  // 当前只开放 DSH、Kimi、workbuddy。GLM／千问保留描述与历史数据兼容，
+  // 但任何环境变量都不得重新打开执行面，避免误用其它模型替代目标 Agent。
+  return agentRuntimeAdapterEnabled(runtime)
 }
 function workbuddyConfig(): { baseUrl: string; token: string } | null {
   const baseUrl = nonEmpty(process.env.WORKBUDDY_RUNTIME_URL).replace(/\/+$/, '')
@@ -49,7 +54,7 @@ export function runtimeRegistry(): RuntimeDescriptor[] {
     const enabled = agentProfileEnabled(id)
     return { id, name: labels[id], kind: id === 'dsh' ? 'dsh-agent' as const : 'dsh-agent-profile' as const,
       configured: dshConfigured, ready: dshConfigured && enabled,
-      detail: !dshConfigured ? '未配置 DSH Agent 服务凭证' : !enabled ? `Profile 未启用：禁止用 SCNet 或其它模型替代 ${id}` : `真实 DSH Agent 会话/工具循环${profile ? ` · modelProfile=${profile}` : ' · 默认模型'}`,
+      detail: !enabled ? 'ARP 适配已硬关闭：当前仅开放 DSH/Kimi/workbuddy' : !dshConfigured ? '未配置 DSH Agent 服务凭证' : `真实 DSH Agent 会话/工具循环${profile ? ` · modelProfile=${profile}` : ' · 默认模型'}`,
       capabilities: ['agent-session', 'tool-loop', 'work-directory', 'factory-isolation', 'event-deliverable'], modelProfile: profile }
   })
 }

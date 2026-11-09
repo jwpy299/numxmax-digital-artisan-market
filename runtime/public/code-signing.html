@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NumX Max · Code signing policy</title>
+  <style>
+    body{margin:0;background:#0b1020;color:#dce7f5;font:16px/1.75 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+    main{max-width:900px;margin:0 auto;padding:48px 22px 64px}h1{font-size:32px;line-height:1.25}h2{margin-top:32px;font-size:21px;color:#8de8ff}p,li{color:#c4d2e4}code{color:#a9f0d1}a{color:#8de8ff}.notice{border:1px solid #735d2c;background:#211b10;padding:16px 20px;border-radius:10px}.card{border:1px solid #263652;background:#111a2c;padding:20px 22px;border-radius:12px;margin-top:22px}small{color:#8ea0b8}
+  </style>
+</head>
+<body><main>
+  <h1>NumX Max · Code signing policy</h1>
+  <p>项目：<a href="https://github.com/jwpy299/numxmax-digital-artisan-market">NumX Max · Digital Artisan Market</a>（Apache-2.0 代码，CC-BY-4.0 文档）。本页同时是桌面端签名与下载政策页。</p>
+  <div class="notice"><strong>当前状态：</strong>SignPath Foundation OSS 申请处于准备／申请阶段。申请批准、签名请求完成并通过 Windows 验证前，现有 EXE 均按<strong>未签名预验包</strong>处理，不得称为可信发布者版本。</div>
+  <section class="card"><h2>签名服务与审批</h2>
+    <p>Windows 组织运行时安装包的签名服务目标：<strong>Free code signing provided by SignPath.io, certificate by SignPath Foundation</strong>。</p>
+    <ul>
+      <li>Authors / Committers / Reviewers：<a href="https://github.com/jwpy299">@jwpy299</a> 与 CODEOWNERS／DSH 独立复核流程；外部贡献必须经维护者评审。</li>
+      <li>Approvers：<a href="https://github.com/jwpy299">@jwpy299</a>（Owner 单签）。每次签名请求必须人工审批，并绑定最终 commit SHA、workflow run、未签名制品 SHA-256 和签名后制品 SHA-256。</li>
+      <li>只接受由公开仓库最终 commit SHA 对应的 GitHub Actions 构建。旧 SHA 的签批不能用于新 SHA，禁止上传本地 EXE 直接签名。</li>
+    </ul>
+  </section>
+  <section class="card"><h2>发布门禁</h2>
+    <ol>
+      <li>构建、测试、secrets／许可证扫描通过后，才把 GitHub Actions artifact 提交 SignPath。</li>
+      <li>Windows EXE 必须具有有效 Authenticode 签名和 RFC3161 时间戳，并在真实 Windows VM 中验证可信证书链。</li>
+      <li>安装、启动、卸载、升级、回滚证据必须绑定最终 commit SHA 和制品 SHA-256。文件改名、自签名、OAuth／申请页面均不算完成。</li>
+      <li>签名审批与生产上线审批是两个独立步骤；全部证据闭合后才允许正式启动生产上线。</li>
+    </ol>
+  </section>
+  <section class="card"><h2>下载与隐私</h2>
+    <p><a href="https://www.lingshu-nebulaai.com/getdesktop">NumX Max 下载注册中心</a> · <a href="https://www.lingshu-nebulaai.com/legal/privacy">平台隐私政策</a> · <a href="https://github.com/jwpy299/numxmax-digital-artisan-market/releases">公开 Releases</a></p>
+    <p>构建与签名阶段向 GitHub 和 SignPath 提供源代码、构建元数据及待签名制品；不把最终用户业务数据、生产密钥或 canonical 数据放入签名制品。桌面端实际网络行为以平台隐私政策及各启用 Agent 服务的配置为准。</p>
+    <p>相关第三方政策：<a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub</a> · <a href="https://signpath.io/privacy-policy">SignPath</a></p>
+  </section>
+  <p><small>更新：2026-11-09。此页只声明签名政策和当前边界，不代表签名申请已批准或生产上线已完成。</small></p>
+</main></body></html>

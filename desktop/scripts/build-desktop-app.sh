@@ -236,6 +236,7 @@ for SHELL_KEY in $SHELL_LIST; do
       mkdir -p "$RUN_TMP/asar/scripts"
       cp "$DT/scripts/verify-org-esm.mjs" "$RUN_TMP/asar/scripts/verify-org-esm.mjs"
       RUN_TMP_ASAR="$RUN_TMP/asar" node "$RUN_TMP/asar/scripts/verify-org-esm.mjs" || { echo '  org asar 内插件 ESM 入口或依赖不可加载——停链'; exit 1; }
+      [ ! -d "$RUN_TMP/asar/frontend/assets" ] || { echo '  org 包混入未使用的 WB React assets（含非 OSI 组件风险）——停链'; exit 1; }
     else
       [ ! -e $RUN_TMP/asar/frontend/org/index.html ] || { echo "  $SHELL_KEY 包内混入 org 入口——停链"; exit 1; }
     fi

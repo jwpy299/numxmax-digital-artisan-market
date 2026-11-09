@@ -1,0 +1,79 @@
+name: verify-windows-lifecycle
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_source_sha:
+        description: '基线安装包的最终 main commit SHA'
+        required: true
+        type: string
+      upgrade_source_sha:
+        description: '升级安装包的最终 main commit SHA，同时用于取出本次验证脚本'
+        required: true
+        type: string
+      base_version:
+        required: true
+        type: string
+      upgrade_version:
+        required: true
+        type: string
+      base_installer_url:
+        description: '已签名基线安装包的公开 URL'
+        required: true
+        type: string
+      base_sha256:
+        required: true
+        type: string
+      upgrade_installer_url:
+        description: '已签名升级安装包的公开 URL'
+        required: true
+        type: string
+      upgrade_sha256:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    environment: production-windows-validation
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.upgrade_source_sha }}
+          fetch-depth: 0
+      - name: Bind final source SHAs and download signed installers
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ('${{ inputs.upgrade_source_sha }}' -ne (git rev-parse HEAD)) { throw 'Upgrade source SHA mismatch' }
+          git merge-base --is-ancestor '${{ inputs.base_source_sha }}' origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Base source SHA is not on main' }
+          git merge-base --is-ancestor '${{ inputs.upgrade_source_sha }}' origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Upgrade source SHA is not on main' }
+          New-Item -ItemType Directory -Force -Path installers, evidence | Out-Null
+          Invoke-WebRequest '${{ inputs.base_installer_url }}' -OutFile 'installers/base.exe'
+          Invoke-WebRequest '${{ inputs.upgrade_installer_url }}' -OutFile 'installers/upgrade.exe'
+          $baseHash = (Get-FileHash installers/base.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $upgradeHash = (Get-FileHash installers/upgrade.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($baseHash -ne '${{ inputs.base_sha256 }}'.ToLowerInvariant()) { throw 'Base installer SHA-256 mismatch' }
+          if ($upgradeHash -ne '${{ inputs.upgrade_sha256 }}'.ToLowerInvariant()) { throw 'Upgrade installer SHA-256 mismatch' }
+      - name: Install start upgrade rollback and uninstall on fresh Windows VM
+        shell: pwsh
+        run: |
+          & desktop/scripts/verify-windows-lifecycle.ps1 `
+            -BaseInstaller "$PWD/installers/base.exe" `
+            -UpgradeInstaller "$PWD/installers/upgrade.exe" `
+            -BaseVersion '${{ inputs.base_version }}' `
+            -UpgradeVersion '${{ inputs.upgrade_version }}' `
+            -EvidenceDirectory "$PWD/evidence"
+      - name: Upload real Windows VM evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: numx-org-windows-lifecycle-${{ inputs.upgrade_source_sha }}
+          path: evidence/
+          if-no-files-found: error

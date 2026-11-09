@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { AgentRuntimeId } from '../../contracts/agentRuntimeContainer'
 import { callDsh } from '../routers/dshClient'
-import { agentModelProfile, agentStationKey, readWorkbuddyAgentConfig } from './registry'
+import { agentModelProfile, agentRuntimeAdapterEnabled, agentStationKey, readWorkbuddyAgentConfig } from './registry'
 
 function sha256(value: string): string { return createHash('sha256').update(value).digest('hex') }
 export interface RuntimeExecutionInput { taskNo: string; role: string; title: string; brief: string; factoryId: number }
@@ -26,8 +26,8 @@ export const executeRuntimeTask: RuntimeExecutor = async (runtime, task) => {
   const started = Date.now()
   const stationKey = agentStationKey(task.taskNo)
   const modelProfile = agentModelProfile(runtime)
-  if (runtime !== 'dsh' && runtime !== 'workbuddy' && process.env[`AGENT_RUNTIME_${runtime.toUpperCase()}_ENABLED`] !== '1') {
-    return { ok: false, runtime, errorCode: 'agent_profile_not_enabled', latencyMs: 0 }
+  if (!agentRuntimeAdapterEnabled(runtime)) {
+    return { ok: false, runtime, errorCode: 'agent_runtime_disabled', latencyMs: 0 }
   }
   const text = `【岗位】${task.role}\n【任务】${task.title}\n【要求】${task.brief}\n【交付纪律】你是实际 Agent 执行体，必须使用可用的 Agent 工具循环输出可复核交付物与已知局限，不得把执行等同于验收。`
   if (runtime === 'workbuddy') {

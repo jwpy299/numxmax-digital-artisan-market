@@ -1,0 +1,47 @@
+{
+  "schema": "numx.production-acceptance.v1",
+  "createdAt": "2026-11-09T00:00:00Z",
+  "required": {
+    "app": {
+      "versionName": "2.9.66",
+      "versionCode": 20966,
+      "sha256": "7f493e3ceaa9c88f1e131676486ec7d3591685b77884c66bb3e2b83c40b9e5b8",
+      "certificateSha256": "4bc0cc568ce7c85b181cedf18a074f95d02616c455b3d8e1afd80ce4b537dd05",
+      "apksignerV2": true,
+      "zipalign": true,
+      "debuggable": false,
+      "certificateChainCompatibleWithV2965": true
+    },
+    "arp": {
+      "enabled": ["dsh", "kimi", "workbuddy"],
+      "hardClosed": ["glm", "qwen"],
+      "runtimeMysqlTests": 2,
+      "employmentMysqlTests": 14,
+      "canonicalTouched": false
+    },
+    "windows": {
+      "authenticodePresent": true,
+      "rfc3161TimestampEvidence": true,
+      "trustedPublisherPresent": true,
+      "cleanWindowsVmLifecycleEvidence": true
+    },
+    "external": {
+      "publicCandidatePushed": true,
+      "signpathApplicationSubmitted": true,
+      "signpathApproved": true,
+      "signpathApiTokenConfigured": true,
+      "kimiActualAgentOk": true,
+      "workbuddyConfigured": true
+    },
+    "launch": {
+      "formalProductionLaunchMayStart": true
+    }
+  },
+  "honestLimitationsNotEquatedWithFailure": [
+    "Android 真实覆盖安装与数据迁移是独立证据，不能由同证书推导。",
+    "Jest forceExit 不等于异步句柄已修复。",
+    "公开申请页或 OAuth 页不等于证书已签发。",
+    "electron-builder 的 signtool 日志不等于存在 Authenticode。",
+    "Gitleaks 未执行不得宣称 secrets 扫描零命中。"
+  ]
+}

@@ -5,5 +5,6 @@ files:
   - assets/**
   - frontend/**
   - "!frontend/index.html"
+  - "!frontend/assets/**"
   - "!frontend/ops/**"
   - package.json

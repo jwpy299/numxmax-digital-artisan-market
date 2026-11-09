@@ -1,0 +1,109 @@
+{
+  "schema": "numx.verifier.run.v1",
+  "verifierVersion": "v1",
+  "timestamp": "2026-11-09T07:45:38.849779+00:00",
+  "command": "verifier/v1/verify.py",
+  "criteria": {
+    "app_signed_package": {
+      "pass": true,
+      "actual": {
+        "sha256": "7f493e3ceaa9c88f1e131676486ec7d3591685b77884c66bb3e2b83c40b9e5b8",
+        "certificateSha256": "4bc0cc568ce7c85b181cedf18a074f95d02616c455b3d8e1afd80ce4b537dd05",
+        "versionName": "2.9.66",
+        "versionCode": 20966
+      }
+    },
+    "arp_allowlist": {
+      "pass": true,
+      "actual": {
+        "enabled": [
+          "dsh",
+          "kimi",
+          "workbuddy"
+        ],
+        "hardClosed": [
+          "glm",
+          "qwen"
+        ]
+      }
+    },
+    "canonical_competition_event_review_wage_regression": {
+      "pass": true,
+      "actual": {
+        "agentEmployment": 14,
+        "agentRuntimeContainer": 2,
+        "separateFreshDatabases": true,
+        "canonicalTouched": false
+      }
+    },
+    "windows_authenticode": {
+      "pass": false,
+      "actual": false
+    },
+    "windows_rfc3161": {
+      "pass": false,
+      "actual": false
+    },
+    "windows_trusted_publisher": {
+      "pass": false,
+      "actual": false
+    },
+    "windows_vm_lifecycle": {
+      "pass": false,
+      "actual": false
+    },
+    "public_candidate_pushed": {
+      "pass": false,
+      "actual": true
+    },
+    "signpath_submitted": {
+      "pass": false,
+      "actual": false
+    },
+    "signpath_approved": {
+      "pass": false,
+      "actual": false
+    },
+    "signpath_token_configured": {
+      "pass": false,
+      "actual": false
+    },
+    "kimi_actual_agent": {
+      "pass": false,
+      "actual": {
+        "ok": false,
+        "provider": "moonshotai-cn",
+        "model": "kimi-k3",
+        "error": "401 Invalid Authentication",
+        "agentSessionEvidence": true
+      }
+    },
+    "workbuddy_agent_service": {
+      "pass": false,
+      "actual": {
+        "adapterEnabled": true,
+        "configured": false,
+        "ready": false,
+        "modelApiSubstitute": false
+      }
+    },
+    "no_premature_production_launch": {
+      "pass": true,
+      "actual": false
+    }
+  },
+  "blocking": [
+    "windows_authenticode",
+    "windows_rfc3161",
+    "windows_trusted_publisher",
+    "windows_vm_lifecycle",
+    "public_candidate_pushed",
+    "signpath_submitted",
+    "signpath_approved",
+    "signpath_token_configured",
+    "kimi_actual_agent",
+    "workbuddy_agent_service"
+  ],
+  "readyForProduction": false,
+  "exitCode": 2
+}

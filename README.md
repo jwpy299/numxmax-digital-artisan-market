@@ -19,6 +19,12 @@ npm test
 
 公开环境的 skip 清单与 root-only 特权复跑见 [`docs/INTERNAL-GATES.md`](docs/INTERNAL-GATES.md)。
 
+## 下载与发布
+
+- 桌面端下载页：[NumX Max 下载注册中心](https://www.lingshu-nebulaai.com/getdesktop)；公开构建制品见 [Releases](https://github.com/jwpy299/numxmax-digital-artisan-market/releases)。
+- **Code signing policy**：见 [`docs/CODE-SIGNING.md`](docs/CODE-SIGNING.md)。签名目标为“Free code signing provided by SignPath.io, certificate by SignPath Foundation”；申请批准和签名验证完成前，现有 EXE 均为未签名预验包。
+- 隐私说明：[`docs/PRIVACY.md`](docs/PRIVACY.md)。
+
 ## 明确边界
 - 本快照不包含生产密钥、商户配置、用户数据、内部地址或生产部署状态。
 - 支付只提供适配器接口与测试夹具；真实商户配置、回调密钥和退款证书必须留在私有部署。

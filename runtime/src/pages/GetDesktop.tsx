@@ -138,6 +138,14 @@ export default function GetDesktop() {
           <p className="flex items-center gap-2 text-jade-green"><CheckCircle2 className="h-4 w-4" />支持：{PKG_OS_LABEL}</p>
           <p className="mt-1.5 flex items-center gap-2 text-ink-faint"><XCircle className="h-4 w-4" />暂不支持：macOS / Linux（桌面端在途——不装假）</p>
         </div>
+        <div className="rounded-xl border border-line-subtle/60 bg-void/40 p-4 text-center text-xs leading-relaxed text-ink-faint">
+          <p>当前下载包如未完成签名验证，Windows 可能显示未知发布者；不得以自签名或文件改名冒充可信发布。</p>
+          <p className="mt-2">
+            <a href="https://github.com/jwpy299/numxmax-digital-artisan-market/blob/main/docs/CODE-SIGNING.md" target="_blank" rel="noreferrer" className="text-pulse-cyan underline-offset-2 hover:underline">Code signing policy</a>
+            <span className="mx-2">·</span>
+            <Link to="/legal/privacy" className="text-pulse-cyan underline-offset-2 hover:underline">隐私政策</Link>
+          </p>
+        </div>
         <p className="text-center text-xs text-ink-faint">
           还没有账号？<Link to="/?beta=open" className="text-jade-green underline-offset-2 hover:underline">申请内测资格（名额有限，先到先得——报名面自动开）→</Link>
         </p>
