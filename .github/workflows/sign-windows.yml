@@ -105,8 +105,6 @@ jobs:
           wait-for-completion: true
           wait-for-completion-timeout-in-seconds: 1800
           output-artifact-directory: release-signed
-          parameters: |
-            version: ${{ toJSON(inputs.version) }}
       - name: Freeze signed artifact and signing evidence
         run: |
           set -euo pipefail

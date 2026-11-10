@@ -1,11 +1,6 @@
-import { lazy, Suspense, useRef } from 'react'
-import gsap from 'gsap'
-import { SplitText } from 'gsap/SplitText'
-import { useGSAP } from '@gsap/react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { ACTS } from './acts'
-
-gsap.registerPlugin(SplitText)
 
 const HeroStarfield = lazy(() => import('./HeroStarfield'))
 
@@ -17,37 +12,20 @@ interface LifecycleHeroProps {
 export default function LifecycleHero({ onActClick }: LifecycleHeroProps) {
   const scope = useRef<HTMLElement>(null)
 
-  useGSAP(
-    () => {
-      const split = new SplitText('.lc-title-line', { type: 'chars' })
-      const tl = gsap.timeline({ defaults: { ease: 'power4.out' } })
-      tl.from(split.chars, {
-        y: 50,
-        opacity: 0,
-        rotateX: -40,
-        stagger: 0.03,
-        duration: 1,
-      })
-        .fromTo(
-          '.lc-hud',
-          { letterSpacing: '0.4em', opacity: 0 },
-          { letterSpacing: '0.18em', opacity: 1, duration: 1.1 },
-          0.2,
-        )
-        .from(
-          '.lc-tick',
-          { scale: 0.8, opacity: 0, stagger: 0.08, duration: 0.5, ease: 'back.out(1.8)' },
-          0.8,
-        )
-        .from('.lc-scroll-hint', { opacity: 0, y: 12, duration: 0.6 }, 1.3)
-      // breathing scroll arrow
-      gsap.to('.lc-arrow', { y: 8, duration: 1.2, ease: 'sine.inOut', yoyo: true, repeat: -1 })
-      return () => {
-        split.revert()
+  useEffect(() => {
+    const node = scope.current
+    if (!node) return
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          node.classList.add('lc-inview')
+          observer.disconnect()
+        }
       }
-    },
-    { scope },
-  )
+    }, { threshold: 0.2 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   return (
     <section ref={scope} className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-void">
@@ -55,6 +33,20 @@ export default function LifecycleHero({ onActClick }: LifecycleHeroProps) {
         <HeroStarfield />
       </Suspense>
       <div aria-hidden className="nebula-halo pointer-events-none absolute -top-40 left-1/2 h-[560px] w-[900px] -translate-x-1/2" />
+      <style>{`
+        .lc-title-line{display:block;transform-origin:50% 100%;animation:lc-title-in .85s cubic-bezier(.2,.7,.2,1) both}
+        .lc-title-line:nth-child(2){animation-delay:.08s}
+        .lc-hud{animation:lc-hud-in 1s ease .15s both}
+        .lc-tick{animation:lc-tick-in .45s cubic-bezier(.2,1.3,.4,1) both}
+        .lc-tick:nth-child(2n){animation-delay:.05s}.lc-tick:nth-child(3n){animation-delay:.1s}.lc-tick:nth-child(4n){animation-delay:.15s}.lc-tick:nth-child(5n){animation-delay:.2s}.lc-tick:nth-child(6n){animation-delay:.25s}
+        .lc-scroll-hint{animation:lc-fade-in .5s ease .8s both}.lc-arrow{display:inline-block;animation:lc-arrow-breathe 1.2s ease-in-out infinite alternate}
+        @keyframes lc-title-in{from{opacity:0;transform:translateY(42px) rotateX(-28deg)}to{opacity:1;transform:translateY(0) rotateX(0)}}
+        @keyframes lc-hud-in{from{opacity:0;letter-spacing:.34em}to{opacity:1;letter-spacing:.18em}}
+        @keyframes lc-tick-in{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
+        @keyframes lc-fade-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes lc-arrow-breathe{from{transform:translateY(0)}to{transform:translateY(8px)}}
+        @media (prefers-reduced-motion:reduce){.lc-title-line,.lc-hud,.lc-tick,.lc-scroll-hint,.lc-arrow{animation:none!important}}
+      `}</style>
 
       <div className="relative z-10 mx-auto flex w-full max-w-site flex-1 flex-col items-center justify-center px-5 pb-40 pt-24 text-center md:px-12">
         <p className="lc-hud hud-label text-pulse-cyan/80">AGENT LIFECYCLE · 6 ACTS</p>
@@ -69,7 +61,6 @@ export default function LifecycleHero({ onActClick }: LifecycleHeroProps) {
         </p>
       </div>
 
-      {/* act tick navigation */}
       <div className="absolute inset-x-0 bottom-0 z-10 pb-8">
         <div className="mx-auto flex max-w-3xl items-end justify-between px-5 md:px-0">
           {ACTS.map((act, i) => (

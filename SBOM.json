@@ -4,7 +4,7 @@
   "serialNumber": "urn:uuid:55dc0167ff38747397ba5a90960356dc",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-11-07T14:01:13.422619+00:00",
+    "timestamp": "2026-11-10T05:37:09.484690Z",
     "tools": [
       {
         "name": "numxmax-sanitized-export"
@@ -2329,17 +2329,6 @@
         {
           "license": {
             "id": "MIT"
-          }
-        }
-      ]
-    },
-    {
-      "name": "@gsap/react",
-      "version": "2.1.2",
-      "licenses": [
-        {
-          "license": {
-            "id": "SEE LICENSE AT https://gsap.com/standard-license"
           }
         }
       ]
@@ -6289,17 +6278,6 @@
         {
           "license": {
             "id": "MIT"
-          }
-        }
-      ]
-    },
-    {
-      "name": "gsap",
-      "version": "3.15.0",
-      "licenses": [
-        {
-          "license": {
-            "id": "Standard 'no charge' license: https://gsap.com/standard-license."
           }
         }
       ]

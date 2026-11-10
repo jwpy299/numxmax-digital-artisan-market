@@ -2,7 +2,7 @@
 
 Generated from runtime/package-lock.json. UNKNOWN/NOASSERTION entries require manual review before public release.
 
-GSAP 与 @gsap/react 使用 GSAP Standard License（https://gsap.com/standard-license），仅允许网站/Web 应用等 Permitted Uses，禁止 Webflow 式可视化动画构建器用途；不得按 MIT 理解或去除其专有声明。
+GSAP 与 @gsap/react 已从公开源码和 `runtime/package-lock.json` 移除；动画改为本地 CSS、IntersectionObserver 与 scroll listener，不再打包 GSAP Standard License 组件。
 
 - (MIT AND Zlib): 1 package(s)
 - (MIT OR GPL-3.0-or-later): 1 package(s)
@@ -19,5 +19,3 @@ GSAP 与 @gsap/react 使用 GSAP Standard License（https://gsap.com/standard-li
 - MIT AND ISC: 1 package(s)
 - MIT-0: 2 package(s)
 - Python-2.0: 1 package(s)
-- SEE LICENSE AT https://gsap.com/standard-license: 1 package(s)
-- Standard 'no charge' license: https://gsap.com/standard-license.: 1 package(s)
