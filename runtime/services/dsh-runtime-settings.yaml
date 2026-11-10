@@ -1,0 +1,26 @@
+llm-pi-ai:
+  providers:
+    scnet:
+      apiKeyEnv: SCNET_API_KEY
+      api: openai-completions
+      baseURL: https://api.scnet.cn/api/llm/v1
+      models:
+        - id: DeepSeek-V4.1-Flash-1017
+          reasoningEfforts: false
+    moonshotai-cn:
+      apiKeyEnv: KIMI_API_KEY
+      api: openai-completions
+      baseURL: https://api.moonshot.cn/v1
+      models:
+        - id: kimi-k3
+          name: Kimi K3
+          contextWindow: 1048576
+          maxTokens: 131072
+          reasoningEfforts:
+            off:
+            low: low
+            high: high
+            max: max
+agent-default-model:
+  provider: scnet
+  model: DeepSeek-V4.1-Flash-1017
