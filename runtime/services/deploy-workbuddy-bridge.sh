@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-EXPECTED_SHA=${1:?usage: deploy-workbuddy-bridge.sh <final-source-sha>
+EXPECTED_SHA=${1:?usage: deploy-workbuddy-bridge.sh <final-source-sha>}
 SRC=${2:?usage: deploy-workbuddy-bridge.sh <final-source-sha> <repo-root>}
 EXPECTED_FILE_SHA=$(sha256sum "$SRC/runtime/services/workbuddy-agent-bridge.mjs" | cut -d' ' -f1)
 EXPECTED_UNIT_SHA=$(sha256sum "$SRC/runtime/services/workbuddy-agent-bridge.service" | cut -d' ' -f1)

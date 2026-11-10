@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-EXPECTED_SHA=${1:?usage: deploy-dsh-runtime.sh <final-source-sha>
+EXPECTED_SHA=${1:?usage: deploy-dsh-runtime.sh <final-source-sha>}
 SRC=${2:?usage: deploy-dsh-runtime.sh <final-source-sha> <repo-root>}
 EXPECTED_SERVER_SHA=$(sha256sum "$SRC/runtime/services/dsh-runtime-server.mjs" | cut -d' ' -f1)
 EXPECTED_SETTINGS_SHA=$(sha256sum "$SRC/runtime/services/dsh-runtime-settings.yaml" | cut -d' ' -f1)
